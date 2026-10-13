@@ -547,3 +547,30 @@ button { font: inherit; cursor: pointer; }
 #seoMarket input:not([type="checkbox"]), #seoMarket select { display:block; width:100%; padding:10px; color:inherit; background:#0b1c29; border:1px solid #ffffff25; border-radius:7px; }
 #dfsQuote { font-size:12px; overflow-wrap:anywhere; }
 .growth-report pre { white-space:pre-wrap; font-size:11px; overflow-wrap:anywhere; }
+.sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+.google-panel { margin:20px 0; border:1px solid #36576b; border-radius:16px; background:linear-gradient(145deg,#122b3d,#0d202e); overflow:hidden; }
+.google-panel-head { display:flex; align-items:center; gap:12px; padding:20px; border-bottom:1px solid #ffffff12; }
+.google-mark { display:grid; place-items:center; flex-shrink:0; width:40px; height:40px; border-radius:12px; background:#fff; color:#4285f4; font:bold 25px Arial,sans-serif; }
+.google-panel h3 { margin:0; font-size:17px; }.google-panel h4 { margin:0 0 6px; font-size:14px; }
+.google-panel p { margin:6px 0 12px; line-height:1.6; color:#b8cddc; font-size:12px; }
+.connection-badge { margin-left:auto; white-space:nowrap; font-size:11px; font-weight:600; padding:6px 9px; border:1px solid #526675; border-radius:30px; color:#c8d7e2; }
+.is-connected .connection-badge { color:#aff2cb; background:#1e503a; border-color:#367456; }
+.google-step { display:flex; align-items:flex-start; gap:12px; padding:20px; }
+.google-step-number { display:grid; place-items:center; flex-shrink:0; width:26px; height:26px; border-radius:50%; background:#284c66; color:#c6eaff; font-size:12px; font-weight:700; }
+.google-step-body { flex:1; min-width:0; }.google-actions { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.google-actions button { min-height:42px; cursor:pointer; font-size:12px; }.google-signin { border:1px solid #d6e0e7; background:#fff; color:#152839; border-radius:9px; padding:10px 16px; font-family:inherit; font-size:12px; font-weight:600; }
+.google-signin:hover { background:#e9f2ff; }.is-connected .google-signin { color:#c3d9ea; background:transparent; border-color:#ffffff25; }.google-disconnect { color:#c5cdd5; }
+.google-status { min-height:18px; margin-bottom:0!important; }.google-status[data-state="error"] { color:#ffc5be; }.google-status[data-state="loading"] { color:#a2d7ff; }
+#googleConnect .google-include { display:flex; align-items:center; gap:12px; margin:0; padding:16px 20px; border-top:1px solid #ffffff12; border-bottom:1px solid #ffffff12; background:#ffffff04; cursor:pointer; }
+.google-include input { width:18px; height:18px; accent-color:#56bdfb; }.google-include b { display:block; font-size:13px; }.google-include small { display:block; margin-top:4px; color:#b4cad9; font-size:11px; }
+.google-property-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin-top:14px; }
+.google-property-card { padding:14px; border:1px solid #ffffff18; border-radius:12px; background:#07182388; min-width:0; }
+.google-source-label { font-size:9px; font-weight:700; letter-spacing:1px; color:#8dcff7; }
+#googleConnect .google-property-card label:not(.sr-only) { margin:8px 0 4px; font-size:13px; font-weight:600; }.google-property-card p { min-height:38px; font-size:11px; }
+.google-property-card small { display:block; color:#adc4d4; font-size:11px; line-height:1.6; margin-top:10px; }
+#googleConnect select,#googleConnect input[type="search"],#googleConnect input[type="date"] { min-height:44px; font-size:12px; margin:8px 0; }
+#googleConnect :is(button,input,select,summary):focus-visible { outline:2px solid #7dd3fc; outline-offset:3px; }
+.google-date-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }.google-footnote { font-size:11px!important; color:#aac1d2!important; }
+.google-selection-summary { padding:12px; border-radius:9px; border:1px solid #3b637d; background:#15364b; color:#d5eeff!important; }
+.google-admin { margin:0 20px 18px; font-size:12px; }.google-admin summary { cursor:pointer; padding:8px 0; }.google-admin code { overflow-wrap:anywhere; }
+@media(max-width:700px){.google-panel-head{flex-wrap:wrap;padding:16px}.connection-badge{margin-left:52px}.google-step{padding:16px;gap:10px}.google-property-grid{grid-template-columns:1fr}.google-property-card p{min-height:0}.google-date-grid{grid-template-columns:1fr;gap:0}}

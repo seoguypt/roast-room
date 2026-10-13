@@ -1,5 +1,6 @@
 import { LocalSpeech } from "./tts.js";
 import {countries,languages} from './markets.js';
+import {propertyLabel,matchingProperties,reportDates} from './google-picker.js';
 const speech = new LocalSpeech();
 import { downloadVerdictPdf } from "./pdf.js";
 
@@ -151,7 +152,7 @@ function selectAdvisory(advisory, roster = state.rosters?.[advisory]) {
   $("#stage").classList.toggle("seo-advisory", advisory === "seo");
   $("#websiteField").hidden = advisory !== "seo";
   $("#seoMarket").hidden = advisory !== "seo";
-  if(advisory==='seo')void refreshGoogle(false);
+  if(advisory==='seo')void refreshGoogle();
   $("#seoCountry").required = $("#seoLanguage").required = advisory === "seo";
   $(".mode").hidden = advisory === "seo";
   $("#convene").textContent = advisory === "seo" ? "Start SEO council review" : "Convene the council";
@@ -250,13 +251,40 @@ function moveSpot(key) {
   spot.classList.add("on");
 }
 
+let googleProperties={gsc:[],ga4:[]},googleGeneration=0,googleChosenByUser=false;
+function googleSelectionSummary(){
+  const gsc=$('#gscProperty'),ga4=$('#ga4Property');
+  const chosen=[gsc.value&&'Search Console',ga4.value&&'Google Analytics'].filter(Boolean);
+  $('#googleSelectionSummary').textContent=chosen.length?`${chosen.join(' + ')} will be included in this review.`:'Choose at least one property to include Google data.';
+}
+function renderGoogleProperties(){
+  const matches=matchingProperties(googleProperties.gsc,$('#website').value),matched=new Set(matches.map(p=>p.id));
+  for(const [kind,id,search,placeholder] of [['gsc','gscProperty','gscSearch','Skip Search Console'],['ga4','ga4Property','ga4Search','Skip Google Analytics']]){
+    const select=$('#'+id),current=select.value,query=$('#'+search).value.trim().toLowerCase();
+    const list=googleProperties[kind].filter(p=>p.id===current||(kind==='gsc'&&!googleChosenByUser&&matches.length===1&&p.id===matches[0].id)||[p.id,p.name,p.account].join(' ').toLowerCase().includes(query)).sort((a,b)=>kind==='gsc'?Number(matched.has(b.id))-Number(matched.has(a.id))||propertyLabel(a).localeCompare(propertyLabel(b)):(a.name||'').localeCompare(b.name||''));
+    select.replaceChildren(new Option(placeholder,''),...list.map(p=>new Option(kind==='gsc'?(matched.has(p.id)?'Suggested · ':'')+propertyLabel(p):p.name+(p.account&&p.account!==p.name?' · '+p.account:''),p.id)));
+    select.value=current;
+    select.disabled=!list.length;
+  }
+  if(!googleChosenByUser){$('#gscProperty').value=matches.length===1?matches[0].id:'';}
+  const selected=$('#gscProperty').value;
+  $('#gscHint').textContent=selected&&!matched.has(selected)&&$('#website').value.trim()?'This property does not cover all entered URLs. Choose a matching property.':matches.length===1?'Matched to the URLs you entered.':matches.length>1?'More than one property covers these URLs. Choose the one you want.':googleProperties.gsc.length?'Enter your URLs above to find matching properties.':'No Search Console properties available for this account.';
+  $('#ga4Hint').textContent=googleProperties.ga4.length?'Choose the Analytics property for the same website.':'No Analytics properties available for this account. Search Console can still be used.';
+  if($('#gscSearch').value.trim()&&$('#gscProperty').options.length===1)$('#gscHint').textContent='No properties match your search.';
+  if($('#ga4Search').value.trim()&&$('#ga4Property').options.length===1)$('#ga4Hint').textContent='No properties match your search.';
+  googleSelectionSummary();
+}
 async function refreshGoogle(properties=true){
-  try{const r=await fetch('/api/google/status'),s=await r.json();if(!r.ok)throw Error(s.error);state.googleConnected=s.connected;$('#googleDisconnect').hidden=!s.connected;
-    $('#googleRedirect').textContent=s.redirectUri;
-    $('#googleStatus').textContent=s.connected?'Google connected · read-only Search Console and GA4 access.':s.configured?'Ready to connect. Sign in with your Google account.':'Google login needs the one-time OAuth client setup below.';
-    if(!s.connected){$('#googleUse').checked=false;$('#googleOptions').hidden=true;return;}
-    if(properties){$('#googleStatus').textContent='Loading accessible Google properties…';const p=await fetch('/api/google/properties'),d=await p.json();if(!p.ok)throw Error(d.error);$('#gscProperties').innerHTML=d.gsc.map(v=>`<option value="${esc(v.id)}">${esc(v.permission)}</option>`).join('');$('#ga4Properties').innerHTML=d.ga4.map(v=>`<option value="${esc(v.id)}">${esc(v.name)} · ${esc(v.account)}</option>`).join('');$('#googleStatus').textContent=`Google connected · ${d.gsc.length} Search Console properties · ${d.ga4.length} GA4 properties. `+d.errors.map(e=>e.source+': '+e.error).join(' ');}
-  }catch(e){$('#googleStatus').textContent=e.message;}
+  const generation=++googleGeneration;$('#googleRefresh').disabled=true;$('#googleStatus').dataset.state='loading';
+  try{const r=await fetch('/api/google/status'),s=await r.json();if(generation!==googleGeneration)return;if(!r.ok)throw Error(s.error);
+    state.googleConnected=s.connected;$('#googleDisconnect').hidden=$('#googleRefresh').hidden=!s.connected;$('#googleUse').disabled=!s.connected;$('#googleSetup').hidden=s.configured;$('#googleLogin').disabled=!s.configured;
+    $('#googleConnect').classList.toggle('is-connected',s.connected);$('#googleBadge').textContent=s.connected?'Connected':'Not connected';$('#googleLogin').textContent=s.connected?'Switch account':'Connect with Google';$('#googleRedirect').textContent=s.redirectUri;
+    $('#googleStatus').textContent=s.connected?'Connected with read-only access.':s.configured?'Sign in to see the websites you can access.':'Google connection has not been configured. Ask the workspace administrator to complete setup.';
+    if(!s.connected){$('#googleUse').checked=false;$('#googleOptions').hidden=true;googleProperties={gsc:[],ga4:[]};renderGoogleProperties();return;}
+    if(properties){$('#googleStatus').textContent='Finding your websites and Analytics properties…';const p=await fetch('/api/google/properties'),d=await p.json();if(generation!==googleGeneration)return;if(!p.ok)throw Error(d.error);googleProperties={gsc:d.gsc||[],ga4:d.ga4||[]};renderGoogleProperties();$('#googleStatus').textContent=`${googleProperties.gsc.length} Search Console properties · ${googleProperties.ga4.length} Analytics properties available.`+(d.errors||[]).map(e=>' '+e.source+': '+e.error).join(' ');}
+    $('#googleStatus').dataset.state='ready';
+  }catch(e){if(generation===googleGeneration){$('#googleStatus').textContent=e.message+' Use Refresh properties to try again.';$('#googleStatus').dataset.state='error';}}
+  finally{if(generation===googleGeneration)$('#googleRefresh').disabled=false;}
 }
 async function refreshCodex(){
   $("#codexConnect").hidden=state.provider!=="codex";if(state.provider!=="codex")return;
@@ -279,8 +307,14 @@ function bindUI() {
   });
   $('#googleRefresh').addEventListener('click',()=>refreshGoogle());
   $('#googleLogin').addEventListener('click',async()=>{const popup=window.open('about:blank','roastroom-google');try{const r=await fetch('/api/google/connect',{method:'POST'}),a=await r.json();if(!r.ok)throw Error(a.error);if(!popup)throw Error('Allow the Google sign-in popup, then connect again.');popup.location.href=a.url;let polls=0;const timer=setInterval(()=>{if(popup.closed||++polls>120){clearInterval(timer);void refreshGoogle();}},2500);}catch(e){popup?.close();$('#googleStatus').textContent=e.message;}});
-  $('#googleDisconnect').addEventListener('click',async()=>{try{const r=await fetch('/api/google/disconnect',{method:'POST'});if(!r.ok)throw Error('Could not disconnect Google.');$('#gscProperties').innerHTML=$('#ga4Properties').innerHTML='';$('#gscProperty').value=$('#ga4Property').value='';await refreshGoogle(false);}catch(e){toast(e.message);}});
+  $('#googleDisconnect').addEventListener('click',async()=>{++googleGeneration;try{const r=await fetch('/api/google/disconnect',{method:'POST'});if(!r.ok)throw Error('Could not disconnect Google.');$('#gscProperty').value=$('#ga4Property').value='';googleChosenByUser=false;await refreshGoogle(false);}catch(e){toast(e.message);}});
   $('#googleUse').addEventListener('change',()=>{$('#googleOptions').hidden=!$('#googleUse').checked;});
+  for(const id of ['gscSearch','ga4Search','website'])$('#'+id).addEventListener('input',renderGoogleProperties);
+  $('#gscProperty').addEventListener('change',()=>{googleChosenByUser=true;renderGoogleProperties();});
+  $('#ga4Property').addEventListener('change',googleSelectionSummary);
+  function applyGooglePeriod(){if($('#googlePeriod').value==='custom')return;const dates=reportDates(Number($('#googlePeriod').value));$('#googleStart').value=dates.start;$('#googleEnd').value=dates.end;}
+  $('#googlePeriod').addEventListener('change',applyGooglePeriod);applyGooglePeriod();
+  for(const id of ['googleStart','googleEnd'])$('#'+id).addEventListener('change',()=>{$('#googlePeriod').value='custom';});
   function clearQuote(){state.dfsQuote=null;$("#dfsApprove").checked=false;$("#dfsQuote").textContent="";}
   for(const id of ["website","seoCountry","seoLanguage","dfsBacklinks"])$("#"+id).addEventListener("input",clearQuote);
   $("#dfsUse").addEventListener("change",async()=>{clearQuote();$("#dfsOptions").hidden=!$("#dfsUse").checked;if($("#dfsUse").checked){try{const status=await fetch("/api/dataforseo/status").then(r=>r.json());$("#dfsStatus").textContent=status.configured?"Credentials saved. Preview account rates before approving a paid fetch.":"Add DATAFORSEO_LOGIN and DATAFORSEO_PASSWORD from DataForSEO API Access to the server .env, then restart.";}catch{$("#dfsStatus").textContent="Could not check DataForSEO setup.";}}});
@@ -366,7 +400,7 @@ function bindUI() {
     if (state.picked.size < 2) return toast("Choose at least two advisors.");
     let dataforseoApproval;
     let googleSettings;
-    if(state.advisory==='seo'&&$('#googleUse').checked){if(!state.googleConnected)return toast('Connect Google first.');googleSettings={gscProperty:$('#gscProperty').value,ga4Property:$('#ga4Property').value,startDate:$('#googleStart').value||undefined,endDate:$('#googleEnd').value||undefined};if(!googleSettings.gscProperty&&!googleSettings.ga4Property)return toast('Select a Search Console and/or GA4 property.');}
+    if(state.advisory==='seo'&&$('#googleUse').checked){if(!state.googleConnected)return toast('Connect Google first.');googleSettings={gscProperty:$('#gscProperty').value,ga4Property:$('#ga4Property').value,startDate:$('#googleStart').value||undefined,endDate:$('#googleEnd').value||undefined};if(!googleSettings.gscProperty&&!googleSettings.ga4Property)return toast('Choose a Search Console or Analytics property, or turn off Google data for this review.');if(googleSettings.gscProperty&&!matchingProperties([{id:googleSettings.gscProperty}],website).length)return toast('Choose a Search Console property that covers all the URLs above.');}
     if(state.advisory === "seo" && $("#dfsUse").checked){if(!state.dfsQuote || !$("#dfsApprove").checked)return toast("Preview DataForSEO costs and approve the displayed plan first.");dataforseoApproval={id:state.dfsQuote.id,approved:true,country:$("#seoCountry").value,language:$("#seoLanguage").value,backlinks:$("#dfsBacklinks").checked};}
     const mode = $('input[name="mode"]:checked').value;
     $("#convene").disabled = true;

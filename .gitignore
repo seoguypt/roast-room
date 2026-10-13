@@ -1,8 +1,20 @@
 .env
 node_modules/
 .DS_Store
+docs/portrait-references/
 
 # your councils stay on your machine; the examples ship with the repo
 sessions/*
 !sessions/.gitkeep
 !sessions/*example*/
+
+.venv-tts/
+tts-data/
+
+__pycache__/
+*.pyc
+
+dataforseo-data/
+.env.*.local
+*.local.txt
+docs/previews/

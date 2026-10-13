@@ -1,6 +1,6 @@
 // Smoke test: one Chair setup call and one seat card, no full council.
 import { SEATS, systemFor, parseCard, checkQuotes } from "../lib/seats.mjs";
-import * as ai from "../lib/anthropic.mjs";
+import * as ai from "../lib/ai.mjs";
 import { MODELS } from "../lib/council.mjs";
 
 const sys = systemFor("hormozi");

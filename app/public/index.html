@@ -41,8 +41,74 @@
     <div class="options" id="options"></div>
   </div>
 
+  <div class="tts-controls" role="group" aria-label="Free text to speech">
+    <button type="button" class="ghost" id="ttsToggle" aria-pressed="false">Voice off</button>
+    <label>Voice <select id="ttsVoice" aria-label="Speech voice"><option value="">Auto voices</option></select></label>
+    <button type="button" class="ghost" id="ttsTest">Test voice</button>
+    <button type="button" class="ghost" id="ttsRefresh">Refresh voices</button>
+    <small id="ttsStatus" role="status">Loading Pocket TTS</small>
+    <details class="clone-controls"><summary>Clone &amp; assign a voice</summary>
+      <p>Upload a clean 3–30 second, 16-bit PCM WAV. Samples stay on this machine. Synthetic voices are not the real advisors.</p>
+      <label>Advisor <select id="cloneSeat" aria-label="Advisor for cloned voice"></select></label>
+      <input type="file" id="cloneFile" accept=".wav,audio/wav" aria-label="Voice sample WAV">
+      <label><input type="checkbox" id="cloneConsent"> I have permission to use this voice.</label>
+      <button type="button" class="ghost" id="cloneBtn" disabled>Clone and assign</button>
+      <small id="cloneStatus" role="status"></small>
+    </details>
+  </div>
   <main class="layout">
     <section class="stage-wrap" aria-label="The council table">
+          <form class="composer" id="composer" hidden>
+            <label class="advisory-picker">Choose your advisory
+              <select id="advisory"><option value="business">Business Advisory</option><option value="seo">SEO Advisory</option></select>
+            </label>
+            <h2 data-type>What decision do you need help with?</h2>
+            <p id="apiSetup" class="note" hidden>Add your Anthropic API key to the server's .env file and restart it to enable councils. API usage is billed to your Anthropic account.</p>
+            <label id="websiteField" class="website-field" hidden>URLs to review
+              <textarea id="website" rows="4" placeholder="https://example.com/&#10;https://example.com/important-page/" maxlength="20000" aria-label="URLs to review"></textarea>
+              <small>Enter up to 10 URLs, one per line. A single URL also samples up to 3 linked pages.</small>
+            </label>
+            <fieldset id="seoMarket" hidden><legend>Target market for this review</legend>
+              <label>Country <input id="seoCountry" placeholder="e.g. United States" maxlength="80" autocomplete="off"></label>
+              <label>Language <input id="seoLanguage" placeholder="e.g. English" maxlength="50" autocomplete="off"></label>
+              <p class="note">Choose these for each review. They guide advice and any DataForSEO queries.</p>
+                <div id="googleConnect">
+                  <h3>Google Search Console &amp; GA4</h3>
+                  <p id="googleStatus" class="note">Connect your Google account for read-only search and conversion reports.</p>
+                  <button id="googleLogin" class="ghost" type="button">Connect Google</button>
+                  <button id="googleRefresh" class="ghost" type="button">Refresh Google properties</button>
+                  <button id="googleDisconnect" class="ghost" type="button" hidden>Disconnect Google</button>
+                  <details><summary>One-time Google login setup</summary><p>Create a Web application OAuth client in <a href="https://console.cloud.google.com/auth/clients" target="_blank" rel="noreferrer">Google Cloud</a>. Enable Search Console API, Google Analytics Data API and Google Analytics Admin API. Add your Google email as a test user if the app is in testing.</p><p>Authorized redirect URI: <code id="googleRedirect">https://advisory.viralseo.net/api/google/callback</code>. Save GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in server environment variables, then restart. Your password stays with Google.</p></details>
+                  <label><input id="googleUse" type="checkbox"> Include Google reports in this review</label>
+                  <div id="googleOptions" hidden>
+                    <label>Search Console property <input id="gscProperty" list="gscProperties" placeholder="Choose property, or leave blank"><datalist id="gscProperties"></datalist></label>
+                    <label>GA4 property ID <input id="ga4Property" list="ga4Properties" placeholder="Choose numeric property ID, or leave blank" inputmode="numeric"><datalist id="ga4Properties"></datalist></label>
+                    <label>Report start date <input id="googleStart" type="date"></label>
+                    <label>Report end date <input id="googleEnd" type="date"></label>
+                    <p class="note">Default: 28 days ending 3 days ago, compared with the preceding 28 days. All countries; exact submitted URLs (GA4 merges query strings). Reports include existing tracked key events; leads need configured tracking. Aggregate reports are saved locally and shared with the selected AI advisors.</p>
+                  </div>
+                </div>
+              <label><input id="dfsUse" type="checkbox"> Include paid DataForSEO data · maximum $5 per review</label>
+              <div id="dfsOptions" hidden>
+                <p id="dfsStatus" class="note">API credentials stay in the server .env.</p>
+                <label><input id="dfsBacklinks" type="checkbox"> Include backlink summary (requires active API subscription)</label>
+                <button id="dfsPreview" class="ghost" type="button">Preview DataForSEO requests &amp; cost</button>
+                <div id="dfsQuote" aria-live="polite"></div>
+                <label><input id="dfsApprove" type="checkbox"> I approve the displayed DataForSEO request plan and estimate, up to $5.</label>
+              </div>
+            </fieldset>
+            <p id="seoScope" class="note" hidden>The advisors use free crawl/browser checks, any approved DataForSEO evidence, and Google reports when connected and selected.</p>
+            <textarea id="prompt" rows="3" placeholder="Give them the decision, your options, a few numbers (revenue, cash, team), and which way you're leaning." required minlength="10"></textarea>
+            <div class="samples" id="samples"></div>
+            <fieldset class="advisor-picker"><legend>Choose your advisors</legend><p class="note">Select at least two. Your chosen advisors participate in every round.</p><div id="advisorChoices"></div><button type="button" class="ghost" id="allAdvisors">Select all</button><span id="advisorCount" aria-live="polite"></span></fieldset>
+            <div class="composer-row">
+              <div class="mode" role="radiogroup" aria-label="Council size">
+                <label><input type="radio" name="mode" value="full" checked><span>Full council <small>7 seats, 3 rounds</small></span></label>
+                <label><input type="radio" name="mode" value="quick"><span>Quick <small>4 seats, 2 rounds</small></span></label>
+              </div>
+              <button class="convene" type="submit" id="convene">Convene the council</button>
+            </div>
+          </form>
       <div class="stage" id="stage">
         <div class="wall" aria-hidden="true"></div>
         <div class="spot" id="spot" aria-hidden="true"></div>
@@ -60,18 +126,7 @@
             <div class="row"><button class="ghost" type="button" id="waitGuide">What to put in your question</button><button class="ghost" type="button" id="waitHistory">Watch a past council</button></div>
           </div>
 
-          <form class="composer" id="composer" hidden>
-            <h2 data-type>What decision do you need help with?</h2>
-            <textarea id="prompt" rows="3" placeholder="Give them the decision, your options, a few numbers (revenue, cash, team), and which way you're leaning." required minlength="10"></textarea>
-            <div class="samples" id="samples"></div>
-            <div class="composer-row">
-              <div class="mode" role="radiogroup" aria-label="Council size">
-                <label><input type="radio" name="mode" value="full" checked><span>Full council <small>7 seats, 3 rounds</small></span></label>
-                <label><input type="radio" name="mode" value="quick"><span>Quick <small>4 seats, 2 rounds</small></span></label>
-              </div>
-              <button class="convene" type="submit" id="convene">Convene the council</button>
-            </div>
-          </form>
+
 
           <div class="caption" id="caption" hidden>
             <div class="cap-head">

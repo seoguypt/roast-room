@@ -6,7 +6,20 @@
   "type": "module",
   "scripts": {
     "start": "node app/server.mjs",
-    "smoke": "node app/scripts/smoke.mjs"
+    "smoke": "node app/scripts/smoke.mjs",
+    "test": "node --test app/scripts/ai.test.mjs app/scripts/nara.test.mjs app/scripts/seo.test.mjs app/scripts/council.test.mjs app/scripts/tts.test.mjs app/scripts/growth.test.mjs app/scripts/dataforseo.test.mjs app/scripts/free-audit.test.mjs app/scripts/google.test.mjs app/scripts/deployment.test.mjs",
+    "tts:setup": "python -m venv .venv-tts && .venv-tts\\Scripts\\python.exe -m pip install pocket-tts==3.3.0",
+    "skills:sync": "node app/scripts/sync-seo-skills.mjs"
   },
-  "engines": { "node": ">=20" }
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "cheerio": "^1.2.0",
+    "chrome-launcher": "^1.2.2",
+    "fast-xml-parser": "^5.11.2",
+    "google-auth-library": "^11.3.0",
+    "lighthouse": "^13.5.0",
+    "puppeteer-core": "^25.13.0"
+  }
 }

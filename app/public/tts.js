@@ -1,9 +1,10 @@
 // Local Pocket TTS: the browser sends text to this app's CPU worker only.
+import { workspaceFetch } from './workspace-fetch.js';
 export class LocalSpeech {
   constructor() { this.enabled = false; this.voiceURI = ""; this.catalog = []; this.pending = null; this.assignments = {}; this.context = null; }
   voices() { return this.catalog; }
   async refresh() {
-    const response = await fetch("/api/tts/status"); const data = await response.json();
+    const response = await workspaceFetch("/api/tts/status"); const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Pocket TTS is unavailable.");
     this.catalog = data.voices || []; return data;
   }
@@ -28,7 +29,7 @@ export class LocalSpeech {
       const resume = context.resume();
       (async () => {
         try {
-          const response = await fetch("/api/tts/speech", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text, voice, stream: true }), signal: controller.signal });
+          const response = await workspaceFetch("/api/tts/speech", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text, voice, stream: true }), signal: controller.signal });
           if (!response.ok) { const data = await response.json(); throw new Error(data.error || "Pocket TTS unavailable."); }
           await resume;
           const sampleRate = Number(response.headers.get("X-Sample-Rate"));

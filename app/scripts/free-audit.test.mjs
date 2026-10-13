@@ -5,6 +5,19 @@ import {freeAudit,schemaChecks,sitemapEntries} from '../lib/free-audit.mjs';
 import {safeProxy} from '../lib/audit-browser.mjs';
 import {auditFindings} from '../lib/seo-findings.mjs';
 const root='https://example.com/';
+test('Affiliate links in HTML, sitemap, canonical and submitted lists never reach the reader or browser',async()=>{
+ const calls=[],rendered=[];
+ const read=async url=>{calls.push(url);assert.ok(!new URL(url).pathname.startsWith('/go'));
+  const body=url.endsWith('robots.txt')?'User-agent: *':url.endsWith('sitemap.xml')?'<urlset><url><loc>https://example.com/go/sitemap-affiliate</loc></url><url><loc>https://example.com/ok</loc></url></urlset>':'<title>Page</title><link rel="canonical" href="/go/canonical"><a href="/go/partner">Affiliate</a><a href="/ok">Content</a>';
+  return {url,status:200,headers:{'content-type':'text/html'},body};};
+ const evidence={submittedUrls:[root,root+'go/submitted'],pages:[{url:root},{url:root+'go/old-evidence'}],sites:[{submittedUrl:root,robots:{status:200},sitemap:{status:200,url:root+'sitemap.xml'}}]};
+ const pack=await freeAudit(evidence,{read,maxBrowserPages:0});
+ assert.ok(calls.includes(root+'ok'));assert.ok(!calls.some(u=>new URL(u).pathname.startsWith('/go')));
+ assert.equal(pack.links.find(l=>l.url===root+'go/partner').status,'Excluded affiliate link: never fetched');
+ assert.ok(!pack.links.some(l=>l.url===root+'go/canonical'));
+ const second=await freeAudit({submittedUrls:[root+'go/submitted'],pages:[{url:root+'go/old-evidence'}],sites:[]},{read,browser:async u=>{rendered.push(u);}});
+ assert.deepEqual(rendered,[]);assert.equal(second.pages.length,0);
+});
 test('bounded crawl preserves broken links, redirect chains, duplicates, render differences and schema evidence',async()=>{
  const calls=[];const read=async url=>{calls.push(url);let body='<html><title>Shared title</title><h1>Title</h1><a href="/other">Other</a><a href="/missing">Missing</a><script type="application/ld+json">{"@type":42}</script></html>',status=200,final=url,redirectChain=[];
  if(url.endsWith('robots.txt'))body='User-agent: *\nDisallow: /private';if(url.endsWith('sitemap.xml'))body='<urlset><url><loc>https://example.com/missing</loc></url></urlset>';if(url.endsWith('/missing'))status=404;if(url.endsWith('/other')){final=root+'final';redirectChain=[{from:url,to:final}];}return {url:final,status,body,headers:{'content-type':'text/html'},redirectChain};};

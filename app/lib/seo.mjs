@@ -4,6 +4,7 @@ import https from "node:https";
 import dns from "node:dns/promises";
 import net from "node:net";
 import { SEO_DISCLAIMER } from "./seo-seats.mjs";
+import { assertCrawlable, isAffiliatePath } from './crawl-policy.mjs';
 export { SEO_SEATS, SEO_RULES, SEO_DISCLAIMER, seoSystem } from "./seo-seats.mjs";
 
 export function normalizeWebsite(input) {
@@ -14,6 +15,7 @@ export function normalizeWebsite(input) {
   catch { throw new Error("Enter a valid website URL."); }
   if (!["http:", "https:"].includes(url.protocol) || url.username || url.password || (url.port && !["80", "443"].includes(url.port))) throw new Error("Use a public HTTP or HTTPS website URL without credentials or custom ports.");
   url.hash = "";
+  assertCrawlable(url);
   return url;
 }
 
@@ -85,6 +87,7 @@ export function extractPage(result) {
 
 // Conservative sample crawl: any matching Disallow prevents fetching a linked page.
 export function allowsSample(robots, pathname) {
+  if(isAffiliatePath(pathname))return false;
   return !robots.split(/\r?\n/).some(line => {
     const rule = line.replace(/#.*/, "").match(/^\s*Disallow\s*:\s*(\S+)/i)?.[1];
     if (!rule) return false;

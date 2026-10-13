@@ -1,4 +1,6 @@
 import { LocalSpeech } from "./tts.js";
+import {discussionTarget,growthReportSections} from './growth-ui.js';
+import {downloadGrowthPdf} from './pdf.js';
 import {countries,languages} from './markets.js';
 import {propertyLabel,matchingProperties,reportDates} from './google-picker.js';
 const speech = new LocalSpeech();
@@ -430,6 +432,7 @@ function bindUI() {
       catch { toast("Copy didn't work here. Select the text and copy it."); }
     }
     if (e.target.closest("[data-pdf]")) savePdf(e.target.closest("[data-pdf]"));
+    if (e.target.closest('[data-growth-pdf]')) saveGrowthPdf(e.target.closest('[data-growth-pdf]'));
   });
   $("#historyBtn").addEventListener("click", openHistory);
   $("#newBtn").addEventListener("click", reset);
@@ -477,7 +480,7 @@ const player = {
 // ------------------------------------------------------------- session wiring
 function reset() {
   state.dfsQuote=null;$("#dfsApprove").checked=false;$("#dfsQuote").textContent="";$("#seoCountry").value="";$("#seoLanguage").value="";
-  state.growthReports = {}; state.growthErrors = {}; state.growthPlan = null; state.workflow = "debate";
+  state.growthReports = {}; state.growthErrors = {}; state.growthPlan = null; state.growthDiscussion=[];state.workflow = "debate";
   state.es?.close();
   player.reset();
   Object.assign(state, { session: null, options: [], weights: {}, active: [], round: 0, cards: { 1: {}, 2: {}, 3: {} }, replaying: false, verdict: null, links: [], speaking: null, setup: null, wait: null });
@@ -579,16 +582,19 @@ async function handle(ev) {
       feedAppend(section);await speak(ev.seat,firstSentences(clean(ev.opinion),500),{tag:"Ranking & growth opinion"});setSpeaker(null);break;
     }
     case "growth_discussion": {
+      state.growthDiscussion ||= [];state.growthDiscussion.push(ev);
       setStep("round2");const section=document.createElement("section");section.className="growth-report";
       section.innerHTML=`<h3>${esc(ev.name)} · council discussion</h3><p>${esc(ev.response)}</p><p><b>Evidence (${esc(ev.page)}):</b> ${esc(ev.evidence)}</p>`;feedAppend(section);
-      await speak(ev.seat,clean(ev.response),{tag:"Discussing the findings"});setSpeaker(null);break;
+      const target=discussionTarget(ev,state.seats.filter(s=>state.active.includes(s.key)));
+      if(target){state.links=state.links.filter(l=>l.from!==ev.seat);state.links.push({from:ev.seat,to:target});drawLinks();}
+      await speak(ev.seat,clean(ev.response),{tag:"Discussing the findings",target});setSpeaker(null);break;
     }
     case "growth_discussion_error": feedPhase(`${ev.name}: discussion unavailable — ${ev.error}`);$(`#seat-${ev.seat}`)?.classList.remove("thinking");break;
     case "growth_plan": {
       state.growthPlan=ev;setStep("verdict");state.wait=null;hideWait();await speak(null,firstSentences(clean(ev.summary),650),{tag:"Chair · Growth roadmap"});
       const section=document.createElement("section");section.className="growth-report roadmap";
       section.innerHTML=`<h3>Combined growth roadmap</h3><p>${esc(ev.summary)}</p><a class="ghost" href="/api/growth/${encodeURIComponent(state.session)}" download>Download full report</a>`+ev.priorities.map(a=>`<article><h4>${esc(a.when)} · ${esc(a.action)}</h4><p>${esc(a.page)} · ${esc(a.owner)}</p><p>${esc(a.reason)}</p><p><b>Dependency:</b> ${esc(a.dependency)}</p><p><b>Success check:</b> ${esc(a.successCheck)}</p></article>`).join("")+`<h4>Measurement</h4>`+ev.measurements.map(m=>`<p><b>${esc(m.metric)}:</b> ${esc(m.how)}<br>Baseline needed: ${esc(m.baselineNeeded)}</p>`).join("")+`<h4>Differences of opinion</h4>`+ev.disagreements.map(d=>`<p><b>${esc(d.issue)}:</b> ${esc(d.views.join("; "))}<br>${esc(d.resolution)}</p>`).join("")+`<h4>Missing data</h4><ul>${ev.dataNeeded.map(d=>`<li>${esc(d)}</li>`).join("")}</ul><p>${esc(ev.limitations)}</p>`;
-      feedAppend(section);break;
+      feedAppend(section);onGrowthPlan(ev);break;
     }
     case "audit": {
       const section = document.createElement("section"); section.className = "guide-sec audit-findings";
@@ -924,6 +930,23 @@ function openCard(seat, round) {
 }
 
 // ------------------------------------------------------------- verdict
+function onGrowthPlan(plan) {
+  setSpeaker(null);state.links=[];drawLinks();
+  $('#caption').hidden=true;$('#playbar').hidden=true;$('#stage').classList.remove('live');
+  const url=`/api/growth/${encodeURIComponent(state.session)}`;
+  const actions=`<button type="button" class="pill" data-growth-pdf>Download PDF</button><a class="ghost" href="${url}" download>Download full report</a><button class="ghost" data-close>Back to the table</button>`;
+  const reports=Object.values(state.growthReports||{}),discussion=state.growthDiscussion||[];
+  $('#verdictBody').innerHTML=`<div class="v-top"><h2>SEO council · Final report</h2><div class="actions">${actions}</div></div>`+growthReportSections(plan,reports,discussion).map(s=>`<section class="v-sec"><h3>${esc(s.title)}</h3>${s.lines.map(l=>`<p>${esc(l)}</p>`).join('')||'<p>No items supplied.</p>'}</section>`).join('');
+  const plate=$('#plate');plate.hidden=false;plate.innerHTML=`<div class="label">The SEO council's final report</div><p>${esc(firstSentences(clean(plan.summary),180))}</p><div class="row"><button type="button" id="growthReportOpen">Read final report</button><button type="button" data-growth-pdf>Download PDF</button><a class="ghost" href="${url}" download>Download full report</a></div>`;
+  $('#growthReportOpen').addEventListener('click',()=>{$('#verdictSheet').hidden=false;});
+  $('#verdictSheet').hidden=false;
+}
+async function saveGrowthPdf(button) {
+  const old=button.textContent;button.disabled=true;button.textContent='Making PDF…';
+  try {await downloadGrowthPdf({plan:state.growthPlan,reports:Object.values(state.growthReports||{}),discussion:state.growthDiscussion||[],id:state.session});}
+  catch(e){toast('Could not make the SEO report PDF: '+e.message);}
+  finally{button.disabled=false;button.textContent=old;}
+}
 // the Chair should write display names; map any raw seat key just in case
 const seatKey = (x) => { const k = String(x).toLowerCase().replace(/\s+/g, ""); return state.byKey[k] ? k : state.seats.find((s) => s.short.toLowerCase() === String(x).toLowerCase() || s.name.toLowerCase() === String(x).toLowerCase())?.key; };
 const seatName = (x) => state.byKey[seatKey(x)]?.short || x;

@@ -15,13 +15,12 @@ for (const name of names) {
   const text = raw.replace(/^---[\s\S]*?\n---\s*/,"");
   const sections = text.split(/(?=^## )/m).filter(section => !/^## (?:Runtime|Quick Reference|Invocation|Source Detection|Error Handling|Post-Analysis|Community Footer|DataForSEO Integration|Reference Documentation|Pre-Delivery Review)/i.test(section));
   let guidance = sections.join("\n").replace(/^.*(?:claude-seo\.ps1|\$HOME|MCP available|MCP detected|spawn subagents|delegate to|SKILL\.md).*$/gim,"");
-  guidance = guidance.slice(0,10000);
   docs.push({id:name,name,source:`${name}/SKILL.md`,sha256:crypto.createHash("sha256").update(raw).digest("hex"),guidance});
 }
 for (const [id,file] of [["content-effort","content-effort.md"],["audit-synthesis","thinking-framework.md"]]) {
   const raw = fs.readFileSync(path.join(root,"seoskill/references",file),"utf8");
   fs.writeFileSync(path.join(out,file),raw);
-  docs.push({id,name:id,source:`seoskill/references/${file}`,sha256:crypto.createHash("sha256").update(raw).digest("hex"),guidance:raw.slice(0,12000)});
+  docs.push({id,name:id,source:`seoskill/references/${file}`,sha256:crypto.createHash("sha256").update(raw).digest("hex"),guidance:raw});
 }
 fs.writeFileSync(path.join(out,"skills.json"),JSON.stringify({syncedAt:new Date().toISOString(),method:"Snapshots of installed local skills; guidance only, no connector access",documents:docs},null,2)+"\n");
 console.log(`Imported ${docs.length} SEO skill/reference documents.`);

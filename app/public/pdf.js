@@ -1,4 +1,5 @@
 // The Roast Room verdict as a one or two page branded PDF, built in the browser with a
+import {growthReportSections} from './growth-ui.js';
 // vendored jsPDF, so the room still needs nothing installed. White page, Montserrat,
 // AIS Dark Blue type, AIS Blue as the accent only (AIS Brand Guidelines v1).
 
@@ -44,6 +45,24 @@ const dateLine = (id) => {
   const d = m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date();
   return d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
 };
+
+export async function downloadGrowthPdf({plan,reports=[],discussion=[],id}) {
+  if(!plan)throw new Error('The final SEO report is not ready yet.');
+  await loadLib();const {jsPDF}=window.jspdf;const doc=new jsPDF({unit:'pt',format:'letter',compress:true});await addFonts(doc);
+  const margin=48,width=516,bottom=744;let y=48;
+  const write=(text,{size=10,bold=false}={})=>{
+    doc.setFont('Montserrat',bold?'bold':'normal');doc.setFontSize(size);doc.setTextColor(...C.ink);
+    const lines=doc.splitTextToSize(String(text??'').replace(/\*\*/g,''),width);
+    for(const line of lines){if(y+size*1.5>bottom){doc.addPage();y=48;}doc.text(line,margin,y+size);y+=size*1.5;}y+=6;
+  };
+  write('SEO council · Final report',{size:20,bold:true});write(dateLine(id));
+  for(const section of growthReportSections(plan,reports,discussion)){
+    if(y>bottom-65){doc.addPage();y=48;}
+    write(section.title,{size:14,bold:true});for(const line of section.lines)write(line);
+  }
+  const pages=doc.getNumberOfPages();for(let p=1;p<=pages;p++){doc.setPage(p);doc.setFontSize(8);doc.setTextColor(...C.mute);doc.text(`Advisory · Simulated SEO council · ${p}/${pages}`,margin,770);}
+  doc.save(`seo-council-${String(id||'report').replace(/[^a-zA-Z0-9_-]/g,'')}.pdf`);
+}
 
 export async function downloadVerdictPdf({ setup, verdict: ev, byKey, id }) {
   await loadLib();

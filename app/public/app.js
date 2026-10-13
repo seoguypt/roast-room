@@ -1,4 +1,5 @@
 import { LocalSpeech } from "./tts.js";
+import {countries,languages} from './markets.js';
 const speech = new LocalSpeech();
 import { downloadVerdictPdf } from "./pdf.js";
 
@@ -266,6 +267,9 @@ async function refreshCodex(){
   }catch(e){$("#codexStatus").textContent=e.message;return false;}
 }
 function bindUI() {
+  for(const [id,values,label] of [['seoCountry',countries,'country'],['seoLanguage',languages,'language']]){
+    const select=$('#'+id);select.replaceChildren(new Option('Choose a '+label,''),...values.map(v=>new Option(v,v)));
+  }
   void refreshCodex();
   $("#codexRefresh").addEventListener('click',()=>refreshCodex());
   $("#codexLogin").addEventListener('click',async()=>{

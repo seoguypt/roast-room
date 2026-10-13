@@ -10,7 +10,7 @@ export function normalizeDataRequest(input){
  const urls=[...new Set(input.urls.map(u=>normalizeWebsite(u).href))];if(!urls.length||urls.length>10)throw new Error("Enter 1–10 URLs.");
  const domains=[...new Set(urls.map(u=>new URL(u).hostname))];if(domains.some(d=>!d.includes(".")||/^[\d.]+$/.test(d)))throw new Error("DataForSEO requires public website domain names.");
  const country=String(input.country||"").trim(),language=String(input.language||"").trim();
- if(!/^[\p{L}\p{N} .'-]{2,80}$/u.test(country)||!/^[\p{L} .'-]{2,50}$/u.test(language))throw new Error("Choose the target country and language for this review.");
+ if(!/^[\p{L}\p{N} .&()'-]{2,80}$/u.test(country)||!/^[\p{L} ()'-]{2,50}$/u.test(language))throw new Error("Choose the target country and language for this review.");
  return {urls,domains,country,language,backlinks:input.backlinks===true};
 }
 export function endpointEstimate(prices,limit){

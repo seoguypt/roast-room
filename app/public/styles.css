@@ -544,6 +544,6 @@ button { font: inherit; cursor: pointer; }
 
 #seoMarket { border:1px solid #ffffff20; border-radius:12px; margin:16px 0; padding:14px; }
 #seoMarket label { display:block; margin:10px 0; font-size:12px; }
-#seoMarket input:not([type="checkbox"]) { display:block; width:100%; padding:10px; color:inherit; background:#0b1c29; border:1px solid #ffffff25; border-radius:7px; }
+#seoMarket input:not([type="checkbox"]), #seoMarket select { display:block; width:100%; padding:10px; color:inherit; background:#0b1c29; border:1px solid #ffffff25; border-radius:7px; }
 #dfsQuote { font-size:12px; overflow-wrap:anywhere; }
 .growth-report pre { white-space:pre-wrap; font-size:11px; overflow-wrap:anywhere; }

@@ -3,6 +3,7 @@ import { freeAudit } from "./lib/free-audit.mjs";
 import {googleOAuth} from './lib/google-oauth.mjs';
 import {googleData,googleReview} from './lib/google-data.mjs';
 import {deployment,authorized} from './lib/deployment.mjs';
+import {WorkspaceAccess,LOGIN_HTML} from './lib/access.mjs';
 import { normalizeGrowthUrls, growthMarkdown } from "./lib/growth.mjs";
 import { ttsRequest } from "./lib/tts.mjs";
 import http from "node:http";
@@ -21,6 +22,7 @@ const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; ch
 
 let running = null; // one council at a time (API runner)
 let collectingData = false;
+const access=new WorkspaceAccess(deployment);
 
 // "viewer" (default): the room plays councils that /roast-room runs in Claude Code.
 // "api": the room can also run councils itself on ANTHROPIC_API_KEY (COUNCIL_RUNNER=api in .env).
@@ -43,8 +45,9 @@ const server = http.createServer(async (req, res) => {
   const p = url.pathname;
   try {
     if(p==='/health')return send(res,200,{status:'ok'});
-    if(!authorized(req.headers.authorization,deployment)){if(deployment.public&&!deployment.password)return send(res,503,{error:'Set APP_ACCESS_PASSWORD in Coolify before enabling this private advisory workspace.'});res.setHeader('WWW-Authenticate','Basic realm="Advisory workspace", charset="UTF-8"');return send(res,401,'Sign in to the advisory workspace.','text/plain');}
     if(p.startsWith('/api/')){const origin=req.headers.origin;if(!deployment.allowedHosts.has(url.hostname)||(origin&&!deployment.allowedOrigins.has(origin)))return send(res,403,{error:'Use the configured app origin for API requests.'});}
+    if(p==='/api/login'&&req.method==='POST'){try{const {username,password}=await readJson(req);res.setHeader('Set-Cookie',access.login(username,password,req.socket.remoteAddress));return send(res,200,{signedIn:true});}catch(e){return send(res,401,{error:e.message});}}
+    if(!access.allows(req)){if(deployment.public&&!deployment.password)return send(res,503,{error:'Set APP_ACCESS_PASSWORD in Coolify before enabling this private advisory workspace.'});if(p.startsWith('/api/'))return send(res,401,{error:'Sign in to the advisory workspace.'});return send(res,200,LOGIN_HTML,'text/html; charset=utf-8');}
     if(p.startsWith('/api/google/')){
       const origin=req.headers.origin;if(origin&&!deployment.allowedOrigins.has(origin))return send(res,403,{error:'Use the configured app origin to connect Google.'});
       if(p==='/api/google/status')return send(res,200,googleOAuth.status());

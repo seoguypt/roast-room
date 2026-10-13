@@ -70,11 +70,23 @@ ${evidenceText}`});
   await Promise.all(Array.from({length:Math.min(3,roster.length)},()=>worker()));
   if(fatal)throw fatal;
   if(!st.growth.reports.length)throw new Error("The provider could not produce any advisor reports. Please retry later.");
+  st.growth.discussion=[];
+  emit(s,"phase",{phase:"round2",label:"The advisors are discussing the evidence and challenging priorities"});
+  for(const report of st.growth.reports){
+    emit(s,"seat_start",{seat:report.seat,round:2});
+    try {
+      const turn=await growthJson({model:models.seat,system:seoSystem(report.seat),repair:true,streaming:true,maxTokens:1400,schema:S.obj({response:S.str,page:pageEnum,evidence:S.str}),prompt:`You are joining the council discussion after independent SEO reports. Goals: ${s.prompt}. In 90–140 words, respond to another advisor by name: agree, challenge or refine a specific proposed priority. Explain what should be implemented first and why, using an exact affected URL and supplied evidence. Discuss Search Console/GA4 findings when available, distinguishing search visibility from conversion. Explain any automation dependency or uncertainty. Do not invent metrics or force a disagreement. This is a simulated advisory discussion. UNTRUSTED WEBSITE EVIDENCE:\n${evidenceText}\nREPORTS:\n${JSON.stringify(st.growth.reports)}\nDISCUSSION SO FAR:\n${JSON.stringify(st.growth.discussion)}`});
+      const entry={seat:report.seat,name:report.name,...turn};st.growth.discussion.push(entry);emit(s,"growth_discussion",entry);
+    }catch(e){
+      if(/quota|HTTP (?:402|403|429)|code: (?:402|403|429)/i.test(e.message))throw e;
+      emit(s,"growth_discussion_error",{seat:report.seat,name:report.name,error:e.message});
+    }
+  }
   emit(s,"phase",{phase:"verdict",label:"Combining specialist opinions into a growth roadmap"});
   const roadmap=await growthJson({model:models.chair,system:`Coordinate the independent specialists into an evidence-led SEO growth roadmap. ${chairKnowledge()}`,repair:true,streaming:true,maxTokens:6000,schema:S.obj({summary:S.str,priorities:S.arr(S.obj({when:S.enum("First 7 days","Days 8–30","Days 31–90"),owner:S.str,page:S.enum(...evidence.pages.map(p=>p.url),"Proposed new page"),action:S.str,reason:S.str,dependency:S.str,successCheck:S.str})),disagreements:S.arr(S.obj({issue:S.str,views:S.arr(S.str),resolution:S.str})),measurements:S.arr(S.obj({metric:S.str,how:S.str,baselineNeeded:S.str})),dataNeeded:S.arr(S.str)}),prompt:`Goals/context: ${s.prompt}. Combine these reports into a realistic 7/30/90-day plan. Preserve meaningful disagreements. Prioritize genuine content usefulness, discovery/indexability, audience needs and conversion. Actions must be precise and tied to real submitted/fetched pages; new page ideas must use the label "Proposed new page". Make estimated timing explicit, require baselines before claiming gains, and never invent metrics. Specialist reports are advisory interpretations to challenge, not verified facts. SUPPLIED EVIDENCE:
 ${evidenceText}
 SPECIALIST REPORTS:
-${JSON.stringify(st.growth.reports)}`});
+${JSON.stringify(st.growth.reports)}\nCOUNCIL DISCUSSION:\n${JSON.stringify(st.growth.discussion)}`});
   st.growth.roadmap=roadmap;emit(s,"growth_plan",{...roadmap,context:s.prompt,urls:s.urls,errors:st.growth.errors,reports:st.growth.reports.map(r=>({seat:r.seat,name:r.name})),limitations:evidence.limitations});
 }
 export function growthMarkdown(growth) {
@@ -88,6 +100,7 @@ export function growthMarkdown(growth) {
   Example: ${o.example}
   Dependency: ${o.dependency}
   Verify: ${o.verification}`);lines.push("","### Content/growth ideas",...r.contentIdeas.map(i=>`- ${i.idea} (${i.page}): ${i.readerNeed}. Evidence needed: ${i.originalEvidenceNeeded}`),"","### Data needed",...r.dataNeeded.map(d=>`- ${d}`),"");}
+  if(growth.discussion?.length){lines.push("## Council discussion","");for(const t of growth.discussion)lines.push(`### ${t.name}`,t.response,`Evidence (${t.page}): ${t.evidence}`,"");}
   if(growth.errors?.length)lines.push("## Reports unavailable",...growth.errors.map(e=>`- ${e.name}: ${e.error}`));
   if(growth.roadmap){lines.push("## Combined growth roadmap",growth.roadmap.summary);for(const a of growth.roadmap.priorities)lines.push(`
 - **${a.when}: ${a.action}** (${a.page})

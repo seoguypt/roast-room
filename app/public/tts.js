@@ -15,7 +15,8 @@ export class LocalSpeech {
   say(text, { rate = 1, index = 0, key = "", onError = () => {} } = {}) {
     this.cancel();
     if (!this.enabled || !this.catalog.length || !text.trim()) return Promise.resolve(false);
-    const voice = this.assignments[key] || this.voiceURI || this.catalog[Math.max(0, index) % this.catalog.length].voiceURI;
+    const assigned = this.assignments[key];
+    const voice = this.catalog.some(v=>v.voiceURI===assigned) ? assigned : this.catalog.some(v=>v.voiceURI===this.voiceURI) ? this.voiceURI : this.catalog[Math.max(0, index) % this.catalog.length].voiceURI;
     const controller = new AbortController();
     return new Promise(resolve => {
       let settled = false;

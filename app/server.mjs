@@ -60,11 +60,12 @@ const server = http.createServer(async (req, res) => {
       if(p==='/api/google/disconnect'&&req.method==='POST')return send(res,200,await googleOAuth.disconnect());
       return send(res,404,{error:'Unknown Google endpoint.'});
     }
-    if (p === "/api/tts/status" || (req.method === "POST" && ["/api/tts/speech", "/api/tts/clone", "/api/tts/assign"].includes(p))) {
+    if (p === "/api/tts/status" || (req.method === "POST" && ["/api/tts/speech", "/api/tts/clone", "/api/tts/assign", "/api/tts/import"].includes(p))) {
       let body;
       if (req.method === "POST") {
         const chunks = []; let bytes = 0;
-        for await (const chunk of req) { bytes += chunk.length; if (bytes > 10_000_000) return send(res, 413, { error: "Voice upload must be under 10 MB." }); chunks.push(chunk); }
+        const limit=p==='/api/tts/import'?25_000_000:10_000_000;
+        for await (const chunk of req) { bytes += chunk.length; if (bytes > limit) return send(res, 413, { error: "Voice upload exceeds the allowed size." }); chunks.push(chunk); }
         body = Buffer.concat(chunks);
       }
       const response = await ttsRequest(p.split("/").pop(), body);

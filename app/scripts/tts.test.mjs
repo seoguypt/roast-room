@@ -15,7 +15,7 @@ test("Pocket streaming playback, voice assignment, errors and cancellation", asy
     const speech = new LocalSpeech(); speech.catalog = [{voiceURI:"alba"},{voiceURI:"marius"}];
     globalThis.fetch = async () => { assert.fail("Muted speech must not request inference"); };
     assert.equal(await speech.say("Muted"), false);
-    speech.enabled = true; speech.assignments.julian = "clone-fixture";
+    speech.enabled = true; speech.catalog.push({voiceURI:"clone-fixture"}); speech.assignments.julian = "clone-fixture";
     globalThis.fetch = async (_url, options) => {
       assert.equal(JSON.parse(options.body).voice, "clone-fixture");
       assert.equal(JSON.parse(options.body).stream, true);

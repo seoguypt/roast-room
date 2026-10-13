@@ -153,7 +153,7 @@ function selectAdvisory(advisory, roster = state.rosters?.[advisory]) {
   if(advisory==='seo')void refreshGoogle(false);
   $("#seoCountry").required = $("#seoLanguage").required = advisory === "seo";
   $(".mode").hidden = advisory === "seo";
-  $("#convene").textContent = advisory === "seo" ? "Get advisor growth reports" : "Convene the council";
+  $("#convene").textContent = advisory === "seo" ? "Start SEO council review" : "Convene the council";
   $(".advisor-picker .note").textContent = advisory === "seo" ? "Select at least two. Each selected advisor writes an independent report." : "Select at least two. Your chosen advisors participate in every round.";
   $("#prompt").setAttribute("aria-label", advisory === "seo" ? "Growth goals and business context" : "Your decision");
   if(!state.session){const labels=advisory === "seo" ? ["Pages","Opinions","Opportunities","Plan","Measurement","Roadmap"] : ["Brief","Openings","Fault lines","Debate","Vote","Verdict"]; $$(".stepper li").forEach((li,i)=>li.textContent=labels[i]);}
@@ -283,6 +283,8 @@ function bindUI() {
       }).join("");
       $("#ttsVoice").value = speech.voiceURI;
       const ready = data.status === "ready";
+      try { speech.enabled=localStorage.getItem("councilVoiceEnabled")==="true"; } catch {}
+      $("#ttsToggle").setAttribute("aria-pressed",String(speech.enabled));$("#ttsToggle").textContent=speech.enabled?"Voice on":"Voice off";
       $("#ttsToggle").disabled = !ready; $("#ttsTest").disabled = !ready; $("#cloneBtn").disabled = !ready || !data.voiceCloning;
       $("#ttsStatus").textContent = ready ? data.error || "Pocket TTS · local CPU · voice cloning" : data.error || "Downloading and warming Pocket TTS…";
       if (data.status === "loading") setTimeout(loadVoices, 5000);
@@ -310,6 +312,7 @@ function bindUI() {
   try { speech.assignments = JSON.parse(localStorage.getItem("councilVoiceAssignments") || "{}"); } catch {}
   $("#ttsToggle").addEventListener("click", () => {
     speech.enabled = !speech.enabled;
+    try { localStorage.setItem("councilVoiceEnabled",String(speech.enabled)); } catch {}
     $("#ttsToggle").setAttribute("aria-pressed", String(speech.enabled));
     $("#ttsToggle").textContent = speech.enabled ? "Voice on" : "Voice off";
     if (!speech.enabled) speech.cancel();
@@ -336,6 +339,7 @@ function bindUI() {
   });
   $("#composer").addEventListener("submit", async (e) => {
     e.preventDefault();
+    if(speech.enabled){speech.context ||= new AudioContext();void speech.context.resume();}
     const prompt = $("#prompt").value.trim();
     if (state.advisory !== "seo" && prompt.length < 10) return toast("Give the council a real decision, at least a sentence.");
     const website = $("#website").value.trim();
@@ -519,10 +523,16 @@ async function handle(ev) {
       state.growthReports ||= {}; state.growthReports[ev.seat] = ev;
       const section=document.createElement("section");section.className="growth-report";
       section.innerHTML=`<h3>${esc(ev.name)}</h3><p>${esc(ev.opinion)}</p><button class="ghost" data-growth-seat="${esc(ev.seat)}">Read full advisor report</button>`+growthReportHtml(ev);
-      feedAppend(section);await speak(ev.seat,firstSentences(clean(ev.opinion),240),{tag:"Ranking & growth opinion"});setSpeaker(null);break;
+      feedAppend(section);await speak(ev.seat,firstSentences(clean(ev.opinion),500),{tag:"Ranking & growth opinion"});setSpeaker(null);break;
     }
+    case "growth_discussion": {
+      setStep("round2");const section=document.createElement("section");section.className="growth-report";
+      section.innerHTML=`<h3>${esc(ev.name)} · council discussion</h3><p>${esc(ev.response)}</p><p><b>Evidence (${esc(ev.page)}):</b> ${esc(ev.evidence)}</p>`;feedAppend(section);
+      await speak(ev.seat,clean(ev.response),{tag:"Discussing the findings"});setSpeaker(null);break;
+    }
+    case "growth_discussion_error": feedPhase(`${ev.name}: discussion unavailable — ${ev.error}`);$(`#seat-${ev.seat}`)?.classList.remove("thinking");break;
     case "growth_plan": {
-      state.growthPlan=ev;setStep("verdict");state.wait=null;hideWait();chairSays(ev.summary,{tag:"Growth roadmap"});
+      state.growthPlan=ev;setStep("verdict");state.wait=null;hideWait();await speak(null,firstSentences(clean(ev.summary),650),{tag:"Chair · Growth roadmap"});
       const section=document.createElement("section");section.className="growth-report roadmap";
       section.innerHTML=`<h3>Combined growth roadmap</h3><p>${esc(ev.summary)}</p><a class="ghost" href="/api/growth/${encodeURIComponent(state.session)}" download>Download full report</a>`+ev.priorities.map(a=>`<article><h4>${esc(a.when)} · ${esc(a.action)}</h4><p>${esc(a.page)} · ${esc(a.owner)}</p><p>${esc(a.reason)}</p><p><b>Dependency:</b> ${esc(a.dependency)}</p><p><b>Success check:</b> ${esc(a.successCheck)}</p></article>`).join("")+`<h4>Measurement</h4>`+ev.measurements.map(m=>`<p><b>${esc(m.metric)}:</b> ${esc(m.how)}<br>Baseline needed: ${esc(m.baselineNeeded)}</p>`).join("")+`<h4>Differences of opinion</h4>`+ev.disagreements.map(d=>`<p><b>${esc(d.issue)}:</b> ${esc(d.views.join("; "))}<br>${esc(d.resolution)}</p>`).join("")+`<h4>Missing data</h4><ul>${ev.dataNeeded.map(d=>`<li>${esc(d)}</li>`).join("")}</ul><p>${esc(ev.limitations)}</p>`;
       feedAppend(section);break;
@@ -546,7 +556,7 @@ async function handle(ev) {
 
 function onSetup(ev) {
   state.workflow = ev.workflow || "debate";
-  const labels=ev.workflow === "growth" ? ["Pages","Opinions","Opportunities","Plan","Measurement","Roadmap"] : ["Brief","Openings","Fault lines","Debate","Vote","Verdict"];
+  const labels=ev.workflow === "growth" ? ["Pages","Opinions","Opportunities","Discussion","Measurement","Roadmap"] : ["Brief","Openings","Fault lines","Debate","Vote","Verdict"];
   $$(".stepper li").forEach((li,i)=>li.textContent=labels[i]);
   selectAdvisory(ev.advisory || "business", ev.roster);
   $("#panelHead").textContent = ev.workflow === "growth" ? "Advisor growth reports" : "Key points";

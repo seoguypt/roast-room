@@ -1,4 +1,4 @@
-import io, json, threading, time, uuid, wave, os
+import io, json, threading, time, uuid, wave, os, base64
 from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import numpy as np
@@ -45,10 +45,29 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if status != "ready": return self.reply(503, {"error":error or "Pocket TTS is loading its model. Try again shortly."})
         length = int(self.headers.get("Content-Length", "0"))
-        if length <= 0 or length > 10_000_000: return self.reply(400, {"error":"Upload must be under 10 MB."})
+        if length <= 0 or length > (25_000_000 if self.path == "/import" else 10_000_000): return self.reply(400, {"error":"Upload exceeds the allowed size."})
         body = self.rfile.read(length)
         try:
             with lock:
+                if self.path == "/import":
+                    args = json.loads(body)
+                    advisor = args.get("advisor")
+                    if advisor not in SEAT_KEYS: return self.reply(400, {"error":"Unknown advisor."})
+                    data = base64.b64decode(args.get("data", ""), validate=True)
+                    if not 1 <= len(data) <= 18_000_000: return self.reply(400, {"error":"Invalid voice profile size."})
+                    key = "clone-" + uuid.uuid4().hex
+                    profile = ROOT / (key + ".safetensors")
+                    profile.write_bytes(data)
+                    try:
+                        state = model.get_state_for_audio_prompt(str(profile))
+                    except Exception:
+                        profile.unlink(missing_ok=True)
+                        return self.reply(400, {"error":"Invalid or incompatible Pocket TTS voice profile."})
+                    states[key] = state
+                    assignments[advisor] = key
+                    temporary = ROOT / "assignments.tmp"
+                    temporary.write_text(json.dumps(assignments)); temporary.replace(ASSIGNMENTS_FILE)
+                    return self.reply(200, {"voiceURI":key, "advisor":advisor})
                 if self.path == "/clone":
                     with wave.open(io.BytesIO(body), "rb") as wav:
                         duration = wav.getnframes() / wav.getframerate()

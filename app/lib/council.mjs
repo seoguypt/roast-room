@@ -8,11 +8,12 @@ import * as ai from "./ai.mjs";
 import { S } from "./ai.mjs";
 import { SESSIONS_DIR, env } from "./env.mjs";
 import { NARA_DEFAULT_MODEL } from "./nara.mjs";
+import {CODEX_MODEL} from './codex.mjs';
 import { SEO_SEATS, SEO_RULES, SEO_DISCLAIMER, seoSystem, inspectWebsite } from "./seo.mjs";
 
 export const MODELS = {
-  seat: env("SEAT_MODEL") || (ai.provider === "nara" ? NARA_DEFAULT_MODEL : ai.provider === "omniroute" ? "auto" : "claude-sonnet-5-5"),
-  chair: env("CHAIR_MODEL") || (ai.provider === "nara" ? NARA_DEFAULT_MODEL : ai.provider === "omniroute" ? "auto" : "claude-opus-5-5"),
+  seat: ai.provider==='codex'?CODEX_MODEL:env("SEAT_MODEL") || (ai.provider === "nara" ? NARA_DEFAULT_MODEL : ai.provider === "omniroute" ? "auto" : "claude-sonnet-5-5"),
+  chair: ai.provider==='codex'?CODEX_MODEL:env("CHAIR_MODEL") || (ai.provider === "nara" ? NARA_DEFAULT_MODEL : ai.provider === "omniroute" ? "auto" : "claude-opus-5-5"),
 };
 
 const CHAIR_SYSTEM = `You are the Chair of a Roast Room council: seven simulated advisors built from the public work of Jeff Bezos (strategy and decisions), Paul Graham (product and startups), Alex Hormozi (offers, pricing, and sales), Gary Vaynerchuk (marketing and attention), Dan Martell (people, hiring, and founder time), Gino Wickman (operations and scaling), and Warren Buffett (money and capital).

@@ -56,6 +56,13 @@
       <small id="cloneStatus" role="status"></small>
     </details>
   </div>
+  <section id="codexConnect" class="voice-controls" hidden aria-label="Codex subscription">
+    <strong>GPT-6.1 Sol · Codex subscription</strong>
+    <button id="codexLogin" class="ghost" type="button">Connect Codex subscription</button>
+    <button id="codexRefresh" class="ghost" type="button">Refresh Codex status</button>
+    <span id="codexStatus" role="status"></span>
+    <p id="codexDevice" hidden>Open <a href="https://auth.openai.com/codex/device" target="_blank" rel="noopener noreferrer">OpenAI device sign-in</a> and enter <strong id="codexCode"></strong>. Authorize only your private Advisory server. Requests use your subscription limits; no paid API fallback.</p>
+  </section>
   <main class="layout">
     <section class="stage-wrap" aria-label="The council table">
           <form class="composer" id="composer" hidden>

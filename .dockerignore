@@ -5,6 +5,8 @@
 node_modules
 .venv-tts
 tts-data
+codex-data
+codex-work
 dataforseo-data
 sessions
 docs/previews

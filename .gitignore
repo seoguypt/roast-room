@@ -10,6 +10,8 @@ sessions/*
 
 .venv-tts/
 tts-data/
+codex-data/
+codex-work/
 
 __pycache__/
 *.pyc

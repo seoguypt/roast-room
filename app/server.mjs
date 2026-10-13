@@ -6,6 +6,7 @@ import {deployment,authorized} from './lib/deployment.mjs';
 import {WorkspaceAccess,LOGIN_HTML} from './lib/access.mjs';
 import { normalizeGrowthUrls, growthMarkdown } from "./lib/growth.mjs";
 import { ttsRequest } from "./lib/tts.mjs";
+import {codexStatus,startCodexLogin} from './lib/codex.mjs';
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
@@ -60,6 +61,8 @@ const server = http.createServer(async (req, res) => {
       if(p==='/api/google/disconnect'&&req.method==='POST')return send(res,200,await googleOAuth.disconnect());
       return send(res,404,{error:'Unknown Google endpoint.'});
     }
+    if(p==='/api/codex/status')return send(res,200,codexStatus());
+    if(p==='/api/codex/connect'&&req.method==='POST')return send(res,200,await startCodexLogin());
     if (p === "/api/tts/status" || (req.method === "POST" && ["/api/tts/speech", "/api/tts/clone", "/api/tts/assign", "/api/tts/import"].includes(p))) {
       let body;
       if (req.method === "POST") {

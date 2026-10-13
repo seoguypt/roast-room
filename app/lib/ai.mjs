@@ -1,15 +1,16 @@
 import { env } from "./env.mjs";
 import * as anthropic from "./anthropic.mjs";
 import { NARA_BASE, checkAllowedModel, assertFreeModel, reserveFreeSlot } from "./nara.mjs";
+import {codexRequest,codexConnected} from './codex.mjs';
 export { S } from "./anthropic.mjs";
 
 export const provider = env("AI_PROVIDER") || "anthropic";
-if (!["anthropic", "omniroute", "nara"].includes(provider)) throw new Error("AI_PROVIDER must be anthropic, omniroute or nara");
+if (!["anthropic", "omniroute", "nara", "codex"].includes(provider)) throw new Error("AI_PROVIDER must be anthropic, omniroute, nara or codex");
 const keyName = provider === "nara" ? "NARA_API_KEY" : provider === "omniroute" ? "OMNIROUTE_API_KEY" : "ANTHROPIC_API_KEY";
 const providerName = provider === "nara" ? "NaraRouter" : "OmniRoute";
 export const usage = provider === "anthropic" ? anthropic.usage : { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, calls: 0 };
-export const hasKey = () => Boolean(env(keyName));
-export const setupMessage = provider === "nara"
+export const hasKey = () => provider==='codex'?codexConnected():Boolean(env(keyName));
+export const setupMessage = provider === 'codex' ? 'Connect your Codex subscription below. All advisors and the Chair use gpt-6.1-sol; subscription limits apply, with no paid API fallback.' : provider === "nara"
   ? "Create a free account at router.bynara.id/register, generate an API key in its dashboard, add NARA_API_KEY to .env, then restart Roast Room. Only verified free models are allowed."
   : provider === "omniroute"
   ? "Start OmniRoute, connect a provider, then add OMNIROUTE_API_KEY to .env and restart Roast Room."
@@ -57,11 +58,12 @@ async function request(body) {
 
 function tally(u) {
   if (!u) return;
-  usage.input += u.prompt_tokens || 0;
-  usage.output += u.completion_tokens || 0;
+  usage.input += u.prompt_tokens || u.input_tokens || 0;
+  usage.output += u.completion_tokens || u.output_tokens || 0;
 }
 
 export async function stream(args) {
+  if(provider==='codex'){const result=await codexRequest({system:systemText(args.system),prompt:args.messages.map(m=>`${m.role}: ${m.content}`).join('\n\n')});tally(result.usage);usage.calls++;args.onText?.(result.text);return result.text;}
   if (provider === "anthropic") return anthropic.stream(args);
   const response = await request({ model: args.model, max_tokens: args.maxTokens || 2000, stream: true,
     ...(args.jsonOutput && provider === "nara" ? { response_format: { type: "json_object" }, temperature: 0.2 } : {}),
@@ -120,6 +122,11 @@ export function validate(value, schema, location = "result") {
 }
 
 export async function json(args) {
+  if(provider==='codex'){
+    const result=await codexRequest(args);tally(result.usage);usage.calls++;
+    let parsed=JSON.parse(result.text.trim().replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,''));
+    if(args.normalize)parsed=args.normalize(parsed,args.schema);validate(parsed,args.schema);return parsed;
+  }
   if (provider === "anthropic") return anthropic.json(args);
   if(provider === "nara" && args.streaming) {
     const content=await stream({model:args.model,maxTokens:args.maxTokens || 4000,jsonOutput:true,system:systemText(args.system)+"\nReturn only valid JSON matching this schema. No markdown or commentary.\n"+JSON.stringify(args.schema),messages:[{role:"user",content:args.prompt}]});

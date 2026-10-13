@@ -4,11 +4,16 @@ import fs from "node:fs";
 import path from "node:path";
 process.env.AI_PROVIDER="omniroute";process.env.OMNIROUTE_API_KEY="fixture";
 const {startCouncil,loadSaved,listSaved}=await import("../lib/council.mjs");
-const {normalizeGrowthUrls,normalizeGrowthReport,growthMarkdown}=await import("../lib/growth.mjs");
+const {normalizeGrowthUrls,normalizeGrowthReport,growthMarkdown,growthSchemaFields}=await import("../lib/growth.mjs");
 const {normalizeWebsite}=await import("../lib/seo.mjs");
 const {SESSIONS_DIR}=await import("../lib/env.mjs");
 function fill(s){if(s.enum)return s.enum[0];if(s.type==="object")return Object.fromEntries(Object.entries(s.properties).map(([k,v])=>[k,fill(v)]));if(s.type==="array")return [];if(s.type==="boolean")return false;return "Fixture";}
 test("Growth URLs normalize, deduplicate and validate",()=>{assert.deepEqual(normalizeGrowthUrls("example.com\nhttps://example.com/",normalizeWebsite),["https://example.com/"]);assert.throws(()=>normalizeGrowthUrls([],normalizeWebsite));assert.throws(()=>normalizeGrowthUrls([42],normalizeWebsite));assert.throws(()=>normalizeGrowthUrls("file:///tmp",normalizeWebsite));assert.throws(()=>normalizeGrowthUrls(Array.from({length:11},(_,i)=>`https://example.com/${i}`),normalizeWebsite));});
+test('Additional model fields do not discard reports or erase estimated-evidence qualifiers',()=>{
+ const schema={type:'object',properties:{strengths:{type:'array',items:{type:'object',properties:{page:{type:'string'},evidence:{type:'string'},meaning:{type:'string'}}}}}};
+ const result=growthSchemaFields({verification:'Extra top-level note',strengths:[{page:'https://example.com/',evidence:'Claim',meaning:'Useful',estimated:true,dependency:'extra'}]},schema);
+ assert.deepEqual(Object.keys(result),['strengths']);assert.match(result.strengths[0].evidence,/Hypothesis/);assert.match(result.strengths[0].meaning,/estimated/);assert.equal(result.strengths[0].page,'https://example.com/');assert.ok(!('dependency' in result.strengths[0]));
+});
 test("Growth review inspects URLs, gives every selected advisor a report, synthesizes and saves",async()=>{
  const original=globalThis.fetch;let requests=0;const inspected=[];
  globalThis.fetch=async(_url,opts)=>{requests++;const body=JSON.parse(opts.body);assert.equal(body.stream,false);const schema=JSON.parse(body.messages[0].content.split("No markdown or commentary.\n").at(-1));const value=fill(schema);

@@ -57,7 +57,7 @@ const VIEWER_GUIDE = `
   </div>`;
 
 function guide() {
-  if (state.advisory === "seo" && state.runner === "api") return `<div class="guide"><div class="guide-sec"><h4>SEO Advisory</h4><ol><li>Enter 1–10 public URLs, one per line.</li><li>Choose a country and language; optionally add your audience and growth goals.</li><li>Select the advisors whose opinions you want.</li><li>Turn Voice on. Hear each opinion, watch the advisors discuss priorities, then get the combined 7/30/90-day roadmap.</li></ol></div><div class="guide-sec"><h4>Your SEO council</h4><p>${state.seats.map(s => esc(s.name)).join(", ")}.</p><p>Each simulated seat combines its sourced profile with your installed specialist SEO skills. Opening cards include page-specific audit findings, proposed fixes and verification steps. Click an advisor to see their focus and public sources.</p></div><div class="guide-sec"><h4>What the council checks</h4><p>Each submitted URL is inspected for content, titles, descriptions, headings, canonicals, robots tags, internal links, image alt attributes and JSON-LD. A single URL also samples up to three linked pages. robots.txt and sitemap.xml are checked.</p><p>Pages are read as server HTML. This is a sampled advisory, not a full crawl. Optional approved DataForSEO checks add indexed keywords, competitor domains and backlink summaries. Free checks crawl up to 20 pages, sample up to 50 internal links and 20 sitemap URLs, and render/run mobile Lighthouse on up to 3 pages. Connect Google and select properties to add historical Search Console and GA4 evidence. Real-user Core Web Vitals are unavailable.</p></div><div class="guide-sec"><h4>Free-only models</h4><p>${state.provider === "nara" ? "NaraRouter Free-plan eligibility is checked before each request. Paid models and auto routing are blocked; exhausted quota stops the council." : "Usage follows the configured provider's plan."}</p></div></div>`;
+  if (state.advisory === "seo" && state.runner === "api") return `<div class="guide"><div class="guide-sec"><h4>SEO Advisory</h4><ol><li>Enter 1–10 public URLs, one per line.</li><li>Choose a country and language; optionally add your audience and growth goals.</li><li>Select the advisors whose opinions you want.</li><li>Turn Voice on. Hear each opinion, watch the advisors discuss priorities, then get the combined 7/30/90-day roadmap.</li></ol></div><div class="guide-sec"><h4>Your SEO council</h4><p>${state.seats.map(s => esc(s.name)).join(", ")}.</p><p>Each simulated seat combines its sourced profile with your installed specialist SEO skills. Opening cards include page-specific audit findings, proposed fixes and verification steps. Click an advisor to see their focus and public sources.</p></div><div class="guide-sec"><h4>What the council checks</h4><p>Each submitted URL is inspected for content, titles, descriptions, headings, canonicals, robots tags, internal links, image alt attributes and JSON-LD. A single URL also samples up to three linked pages. robots.txt and sitemap.xml are checked.</p><p>Pages are read as server HTML. This is a sampled advisory, not a full crawl. Optional approved DataForSEO checks add indexed keywords, competitor domains and backlink summaries. Free checks crawl up to 20 pages, sample up to 50 internal links and 20 sitemap URLs, and render/run mobile Lighthouse on up to 3 pages. Connect Google and select properties to add historical Search Console and GA4 evidence. Real-user Core Web Vitals are unavailable.</p></div><div class="guide-sec"><h4>AI model</h4><p>${state.provider === "nara" ? "NaraRouter Free-plan eligibility is checked before each request. Paid models and auto routing are blocked; exhausted quota stops the council." : "Usage follows the configured provider's plan."}</p></div></div>`;
   if (state.runner !== "api") return VIEWER_GUIDE;
   return VIEWER_GUIDE
     .replace('Open Claude Code in this folder.', 'Enter your decision in the form on this page.')
@@ -66,7 +66,7 @@ function guide() {
     .replace("Left something out? The Chair asks before the council starts.", 'Include the key numbers. The Chair labels assumptions when details are missing.')
     .replace('<code>/roast-room</code> ', '')
     .replace('add <code>--quick</code> for 4 advisors and 2 rounds. Uses far less of your plan.', 'choose Quick for 4 advisors, with a vote round if needed. Uses fewer API calls.')
-    .replace('<h4>Good to know</h4>', `<h4>Good to know</h4><p class="note">${state.provider === "nara" ? "NaraRouter free-only mode: requests use allowlisted free models, verified against the current Free plan. No auto routing or paid fallback. Quota errors stop the council." : state.provider === "omniroute" ? "Councils use your connected OmniRoute providers and their quotas. Choose free providers in OmniRoute to avoid paid usage." : "Councils use your Anthropic API account and incur API charges."}</p>`);
+    .replace('<h4>Good to know</h4>', `<h4>Good to know</h4><p class="note">${state.provider === "nara" ? "NaraRouter free-only mode: requests use allowlisted free models, verified against the current Free plan. No auto routing or paid fallback. Quota errors stop the council." : state.provider === "omniroute" ? "Councils use your connected OmniRoute providers and their quotas. Choose free providers in OmniRoute to avoid paid usage." : "Councils use the configured provider. Codex subscription mode has no paid API fallback."}</p>`);
 }
 
 const SHAPES = ["base", "open", "mid", "blink"];
@@ -257,7 +257,22 @@ async function refreshGoogle(properties=true){
     if(properties){$('#googleStatus').textContent='Loading accessible Google properties…';const p=await fetch('/api/google/properties'),d=await p.json();if(!p.ok)throw Error(d.error);$('#gscProperties').innerHTML=d.gsc.map(v=>`<option value="${esc(v.id)}">${esc(v.permission)}</option>`).join('');$('#ga4Properties').innerHTML=d.ga4.map(v=>`<option value="${esc(v.id)}">${esc(v.name)} · ${esc(v.account)}</option>`).join('');$('#googleStatus').textContent=`Google connected · ${d.gsc.length} Search Console properties · ${d.ga4.length} GA4 properties. `+d.errors.map(e=>e.source+': '+e.error).join(' ');}
   }catch(e){$('#googleStatus').textContent=e.message;}
 }
+async function refreshCodex(){
+  $("#codexConnect").hidden=state.provider!=="codex";if(state.provider!=="codex")return;
+  try{const r=await fetch('/api/codex/status'),d=await r.json();if(!r.ok)throw Error(d.error);state.hasKey=d.connected;
+    $("#codexStatus").textContent=d.connected?'Connected · gpt-6.1-sol · subscription limits apply.':d.login?.error||'Connect your ChatGPT account to use your Codex subscription.';
+    $("#apiSetup").hidden=d.connected;$("#convene").disabled=!d.connected;$("#codexDevice").hidden=!d.login?.code;$("#codexCode").textContent=d.login?.code||'';
+    return d.connected;
+  }catch(e){$("#codexStatus").textContent=e.message;return false;}
+}
 function bindUI() {
+  void refreshCodex();
+  $("#codexRefresh").addEventListener('click',()=>refreshCodex());
+  $("#codexLogin").addEventListener('click',async()=>{
+    $("#codexLogin").disabled=true;$("#codexStatus").textContent='Preparing OpenAI device sign-in…';
+    try{const r=await fetch('/api/codex/connect',{method:'POST'}),d=await r.json();if(!r.ok)throw Error(d.error);await refreshCodex();let polls=0;const timer=setInterval(async()=>{if(await refreshCodex()||++polls>180)clearInterval(timer);},5000);}
+    catch(e){$("#codexStatus").textContent=e.message;}finally{$("#codexLogin").disabled=false;}
+  });
   $('#googleRefresh').addEventListener('click',()=>refreshGoogle());
   $('#googleLogin').addEventListener('click',async()=>{const popup=window.open('about:blank','roastroom-google');try{const r=await fetch('/api/google/connect',{method:'POST'}),a=await r.json();if(!r.ok)throw Error(a.error);if(!popup)throw Error('Allow the Google sign-in popup, then connect again.');popup.location.href=a.url;let polls=0;const timer=setInterval(()=>{if(popup.closed||++polls>120){clearInterval(timer);void refreshGoogle();}},2500);}catch(e){popup?.close();$('#googleStatus').textContent=e.message;}});
   $('#googleDisconnect').addEventListener('click',async()=>{try{const r=await fetch('/api/google/disconnect',{method:'POST'});if(!r.ok)throw Error('Could not disconnect Google.');$('#gscProperties').innerHTML=$('#ga4Properties').innerHTML='';$('#gscProperty').value=$('#ga4Property').value='';await refreshGoogle(false);}catch(e){toast(e.message);}});
@@ -958,7 +973,7 @@ async function replay(id) {
 // ------------------------------------------------------------- waiting on Claude Code
 // A live council goes quiet for minutes while the seats write in parallel. Instead of a
 // frozen table, say what is happening, how long it has been, and what each seat is weighing.
-const sameTime = () => state.runner === "api" ? "The advisors write in parallel. Their answers stream into the room." : "The advisors all write at the same time in Claude Code. Their lines play here as soon as the round is in.";
+const sameTime = () => state.provider === "codex" ? "The advisors use gpt-6.1-sol in a subscription queue. Each response plays when ready." : state.runner === "api" ? "The advisors write in parallel. Their answers stream into the room." : "The advisors all write at the same time in Claude Code. Their lines play here as soon as the round is in.";
 function waitCopy(phase) {
   const n = state.setup?.mode === "quick" ? 2 : 3;
   return {

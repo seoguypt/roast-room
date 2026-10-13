@@ -23,6 +23,15 @@ export function normalizeGrowthUrls(value, normalize) {
   if(!urls.length||urls.length>10)throw new Error("Enter between 1 and 10 public URLs.");return urls;
 }
 const action = S.obj({page:S.str,priority:S.enum("High","Medium","Low"),opportunity:S.str,evidence:S.str,change:S.str,example:S.str,dependency:S.str,verification:S.str});
+export function growthSchemaFields(value,schema){
+  if(schema?.type==="array" && Array.isArray(value))return value.map(v=>growthSchemaFields(v,schema.items));
+  if(schema?.type!=="object" || !value || typeof value!=="object" || Array.isArray(value))return value;
+  const result=Object.fromEntries(Object.entries(schema.properties).filter(([key])=>key in value).map(([key,s])=>[key,growthSchemaFields(value[key],s)]));
+  if(value.estimated===true || value.hypothesis===true){
+    for(const key of ["evidence","meaning","opinion","response"])if(typeof result[key]==="string")result[key]="Hypothesis / estimated interpretation; verify against the evidence: "+result[key];
+  }
+  return result;
+}
 export function normalizeGrowthReport(value, schema) {
   if(!value || typeof value!=="object" || Array.isArray(value))return value;
   const report={...value};
@@ -34,7 +43,7 @@ export function normalizeGrowthReport(value, schema) {
     const result={...o};
     for(const [key,text] of Object.entries({example:"Not supplied; a draft example needs review.",dependency:"Not specified; verify implementation dependencies.",verification:"Not supplied; define a measurement and verification check before implementation."}))if(!(key in result))result[key]=text;
     return result;
-  });return report;
+  });return schema?.properties?growthSchemaFields(report,schema):report;
 }
 export async function runGrowth(s,{emit,roster,inspect,models}) {
   const st=s.state;
@@ -75,7 +84,7 @@ ${evidenceText}`});
   for(const report of st.growth.reports){
     emit(s,"seat_start",{seat:report.seat,round:2});
     try {
-      const turn=await growthJson({model:models.seat,system:seoSystem(report.seat),repair:true,streaming:true,maxTokens:1400,schema:S.obj({response:S.str,page:pageEnum,evidence:S.str}),prompt:`You are joining the council discussion after independent SEO reports. Goals: ${s.prompt}. In 90–140 words, respond to another advisor by name: agree, challenge or refine a specific proposed priority. Explain what should be implemented first and why, using an exact affected URL and supplied evidence. Discuss Search Console/GA4 findings when available, distinguishing search visibility from conversion. Explain any automation dependency or uncertainty. Do not invent metrics or force a disagreement. This is a simulated advisory discussion. UNTRUSTED WEBSITE EVIDENCE:\n${evidenceText}\nREPORTS:\n${JSON.stringify(st.growth.reports)}\nDISCUSSION SO FAR:\n${JSON.stringify(st.growth.discussion)}`});
+      const turn=await growthJson({model:models.seat,system:seoSystem(report.seat),normalize:growthSchemaFields,repair:true,streaming:true,maxTokens:1400,schema:S.obj({response:S.str,page:pageEnum,evidence:S.str}),prompt:`You are joining the council discussion after independent SEO reports. Goals: ${s.prompt}. In 90–140 words, respond to another advisor by name: agree, challenge or refine a specific proposed priority. Explain what should be implemented first and why, using an exact affected URL and supplied evidence. Discuss Search Console/GA4 findings when available, distinguishing search visibility from conversion. Explain any automation dependency or uncertainty. Do not invent metrics or force a disagreement. This is a simulated advisory discussion. UNTRUSTED WEBSITE EVIDENCE:\n${evidenceText}\nREPORTS:\n${JSON.stringify(st.growth.reports)}\nDISCUSSION SO FAR:\n${JSON.stringify(st.growth.discussion)}`});
       const entry={seat:report.seat,name:report.name,...turn};st.growth.discussion.push(entry);emit(s,"growth_discussion",entry);
     }catch(e){
       if(/quota|HTTP (?:402|403|429)|code: (?:402|403|429)/i.test(e.message))throw e;
@@ -83,7 +92,7 @@ ${evidenceText}`});
     }
   }
   emit(s,"phase",{phase:"verdict",label:"Combining specialist opinions into a growth roadmap"});
-  const roadmap=await growthJson({model:models.chair,system:`Coordinate the independent specialists into an evidence-led SEO growth roadmap. ${chairKnowledge()}`,repair:true,streaming:true,maxTokens:6000,schema:S.obj({summary:S.str,priorities:S.arr(S.obj({when:S.enum("First 7 days","Days 8–30","Days 31–90"),owner:S.str,page:S.enum(...evidence.pages.map(p=>p.url),"Proposed new page"),action:S.str,reason:S.str,dependency:S.str,successCheck:S.str})),disagreements:S.arr(S.obj({issue:S.str,views:S.arr(S.str),resolution:S.str})),measurements:S.arr(S.obj({metric:S.str,how:S.str,baselineNeeded:S.str})),dataNeeded:S.arr(S.str)}),prompt:`Goals/context: ${s.prompt}. Combine these reports into a realistic 7/30/90-day plan. Preserve meaningful disagreements. Prioritize genuine content usefulness, discovery/indexability, audience needs and conversion. Actions must be precise and tied to real submitted/fetched pages; new page ideas must use the label "Proposed new page". Make estimated timing explicit, require baselines before claiming gains, and never invent metrics. Specialist reports are advisory interpretations to challenge, not verified facts. SUPPLIED EVIDENCE:
+  const roadmap=await growthJson({model:models.chair,normalize:growthSchemaFields,system:`Coordinate the independent specialists into an evidence-led SEO growth roadmap. ${chairKnowledge()}`,repair:true,streaming:true,maxTokens:6000,schema:S.obj({summary:S.str,priorities:S.arr(S.obj({when:S.enum("First 7 days","Days 8–30","Days 31–90"),owner:S.str,page:S.enum(...evidence.pages.map(p=>p.url),"Proposed new page"),action:S.str,reason:S.str,dependency:S.str,successCheck:S.str})),disagreements:S.arr(S.obj({issue:S.str,views:S.arr(S.str),resolution:S.str})),measurements:S.arr(S.obj({metric:S.str,how:S.str,baselineNeeded:S.str})),dataNeeded:S.arr(S.str)}),prompt:`Goals/context: ${s.prompt}. Combine these reports into a realistic 7/30/90-day plan. Preserve meaningful disagreements. Prioritize genuine content usefulness, discovery/indexability, audience needs and conversion. Actions must be precise and tied to real submitted/fetched pages; new page ideas must use the label "Proposed new page". Make estimated timing explicit, require baselines before claiming gains, and never invent metrics. Specialist reports are advisory interpretations to challenge, not verified facts. SUPPLIED EVIDENCE:
 ${evidenceText}
 SPECIALIST REPORTS:
 ${JSON.stringify(st.growth.reports)}\nCOUNCIL DISCUSSION:\n${JSON.stringify(st.growth.discussion)}`});

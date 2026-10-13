@@ -585,6 +585,7 @@ async function handle(ev) {
       state.growthDiscussion ||= [];state.growthDiscussion.push(ev);
       setStep("round2");const section=document.createElement("section");section.className="growth-report";
       section.innerHTML=`<h3>${esc(ev.name)} · council discussion</h3><p>${esc(ev.response)}</p><p><b>Evidence (${esc(ev.page)}):</b> ${esc(ev.evidence)}</p>`;feedAppend(section);
+      if(ev.contributionType==='no-addition'){setSpeaker(null);$(`#seat-${ev.seat}`)?.classList.remove('thinking');break;}
       const target=discussionTarget(ev,state.seats.filter(s=>state.active.includes(s.key)));
       if(target){state.links=state.links.filter(l=>l.from!==ev.seat);state.links.push({from:ev.seat,to:target});drawLinks();}
       await speak(ev.seat,clean(ev.response),{tag:"Discussing the findings",target});setSpeaker(null);break;
@@ -907,7 +908,7 @@ function feedCard(round, seat, parsed) {
 function growthReportHtml(r) {
   const methods=(r.sourceReferences||[]).filter(s=>/^https:\/\//i.test(s.url)).map(s=>`<li><a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">${esc(s.title)}</a> · ${esc(s.id)}<br>${esc(s.section)} · Reviewed ${esc(s.reviewedAt)}<p>${esc(s.application)}</p></li>`).join('');
   const sources=methods?`<details class="seat-findings"><summary>Source methods applied</summary><p>These explain the advisor's method; website findings require separate evidence below.</p><ul>${methods}</ul></details>`:'';
-  return sources+`<h4>Observed strengths</h4>`+r.strengths.map(s=>`<p><b>${esc(s.page)}</b><br>${esc(s.evidence)}<br>${esc(s.meaning)}</p>`).join("")+`<h4>Ranking &amp; growth opportunities</h4>`+r.opportunities.map(o=>`<details open><summary>${esc(o.priority)} · ${esc(o.opportunity)}</summary><p><b>Page:</b> ${esc(o.page)}</p><p><b>Evidence:</b> ${esc(o.evidence)}</p><p><b>Change:</b> ${esc(o.change)}</p><p><b>Example:</b> ${esc(o.example)}</p><p><b>Dependency:</b> ${esc(o.dependency)}</p><p><b>Verify:</b> ${esc(o.verification)}</p></details>`).join("")+`<h4>Content &amp; distribution ideas</h4>`+r.contentIdeas.map(i=>`<p><b>${esc(i.idea)}</b> (${esc(i.page)})<br>${esc(i.readerNeed)}<br>Original evidence needed: ${esc(i.originalEvidenceNeeded)}</p>`).join("")+`<h4>Data needed</h4><ul>${r.dataNeeded.map(d=>`<li>${esc(d)}</li>`).join("")}</ul>`;
+  return (r.assignment?`<p><b>Specialist assignment:</b> ${esc(r.assignment)}</p>`:'')+sources+`<h4>Observed strengths</h4>`+r.strengths.map(s=>`<p><b>${esc(s.page)}</b><br>${esc(s.evidence)}<br>${esc(s.meaning)}</p>`).join("")+`<h4>Ranking &amp; growth opportunities</h4>`+r.opportunities.map(o=>`<details open><summary>${esc(o.priority)} · ${esc(o.opportunity)}</summary><p><b>Page:</b> ${esc(o.page)}</p><p><b>Evidence:</b> ${esc(o.evidence)}</p><p><b>Change:</b> ${esc(o.change)}</p><p><b>Example:</b> ${esc(o.example)}</p><p><b>Dependency:</b> ${esc(o.dependency)}</p><p><b>Verify:</b> ${esc(o.verification)}</p></details>`).join("")+`<h4>Content &amp; distribution ideas</h4>`+r.contentIdeas.map(i=>`<p><b>${esc(i.idea)}</b> (${esc(i.page)})<br>${esc(i.readerNeed)}<br>Original evidence needed: ${esc(i.originalEvidenceNeeded)}</p>`).join("")+`<h4>Data needed</h4><ul>${r.dataNeeded.map(d=>`<li>${esc(d)}</li>`).join("")}</ul>`;
 }
 function openCard(seat, round) {
   const s = state.byKey[seat];

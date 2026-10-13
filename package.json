@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node app/server.mjs",
     "smoke": "node app/scripts/smoke.mjs",
-    "test": "node --test app/scripts/ai.test.mjs app/scripts/nara.test.mjs app/scripts/seo.test.mjs app/scripts/council.test.mjs app/scripts/tts.test.mjs app/scripts/growth.test.mjs app/scripts/dataforseo.test.mjs app/scripts/free-audit.test.mjs app/scripts/google.test.mjs app/scripts/deployment.test.mjs app/scripts/access.test.mjs app/scripts/codex.test.mjs app/scripts/google-picker.test.mjs app/scripts/advisor-library.test.mjs app/scripts/workspace-fetch.test.mjs app/scripts/growth-ui.test.mjs",
+    "test": "node --test app/scripts/ai.test.mjs app/scripts/nara.test.mjs app/scripts/seo.test.mjs app/scripts/council.test.mjs app/scripts/tts.test.mjs app/scripts/growth.test.mjs app/scripts/dataforseo.test.mjs app/scripts/free-audit.test.mjs app/scripts/google.test.mjs app/scripts/deployment.test.mjs app/scripts/access.test.mjs app/scripts/codex.test.mjs app/scripts/google-picker.test.mjs app/scripts/advisor-library.test.mjs app/scripts/workspace-fetch.test.mjs app/scripts/growth-ui.test.mjs app/scripts/growth-protocol.test.mjs",
     "tts:setup": "python -m venv .venv-tts && .venv-tts\\Scripts\\python.exe -m pip install pocket-tts==3.3.0",
     "skills:sync": "node app/scripts/sync-seo-skills.mjs",
     "brains:import": "node app/scripts/import-advisor-transcript.mjs"

@@ -8,6 +8,9 @@ export function discussionTarget(event,seats) {
 }
 export function growthReportSections(plan,reports=[],discussion=[]) {
   const sections=[{title:'Council conclusion',lines:[plan.summary||'',`Goals: ${plan.context||'Not specified'}`,`Submitted URLs: ${(plan.urls||[]).join(', ')}`]}];
+  if(plan.sharedFindings?.length)sections.push({title:'Shared findings — consolidated',lines:plan.sharedFindings.map(f=>`${f.issue} (${f.page}). ${f.action}. Advisors: ${(f.advisors||[]).join(', ')}`)});
+  if(plan.specialistContributions?.length)sections.push({title:'Distinct specialist contributions',lines:plan.specialistContributions.map(c=>`${c.advisor}: ${c.contribution}`)});
+  if(plan.decisions?.length)sections.push({title:'Decisions and tradeoffs',lines:plan.decisions.map(d=>`${d.decision}. Tradeoff: ${d.tradeoff}. Next check: ${d.nextCheck}`)});
   for(const when of ['First 7 days','Days 8–30','Days 31–90'])sections.push({title:when,lines:(plan.priorities||[]).filter(p=>p.when===when).flatMap(p=>[`${p.action} — ${p.page}`,`Owner: ${p.owner}. Why: ${p.reason}`,`Dependency: ${p.dependency}`,`Success check: ${p.successCheck}`])});
   sections.push({title:'Measurement',lines:(plan.measurements||[]).map(m=>`${m.metric}: ${m.how}. Baseline needed: ${m.baselineNeeded}`)});
   sections.push({title:'Differences of opinion',lines:(plan.disagreements||[]).map(d=>`${d.issue}: ${(d.views||[]).join('; ')}. Resolution: ${d.resolution}`)});

@@ -41,7 +41,10 @@ class Handler(BaseHTTPRequestHandler):
         if self.path != "/status": return self.reply(404, {"error":"Not found"})
         voices = [{"voiceURI":v, "name":v.title()} for v in PRESETS]
         voices += [{"voiceURI":p.stem, "name":"Cloned voice " + p.stem[-6:]} for p in ROOT.glob("clone-*.safetensors")]
-        self.reply(200, {"status":status, "error":error, "engine":"Pocket TTS", "voiceCloning":bool(model and model.has_voice_cloning), "assignments":assignments, "voices":voices})
+        message = error
+        if status == "ready" and model and not model.has_voice_cloning and any(v["voiceURI"].startswith("clone-") for v in voices):
+            message = "Saved cloned voices and stock voices ready. Creating new clones requires Pocket TTS access on Hugging Face."
+        self.reply(200, {"status":status, "error":message, "engine":"Pocket TTS", "voiceCloning":bool(model and model.has_voice_cloning), "assignments":assignments, "voices":voices})
     def do_POST(self):
         if status != "ready": return self.reply(503, {"error":error or "Pocket TTS is loading its model. Try again shortly."})
         length = int(self.headers.get("Content-Length", "0"))

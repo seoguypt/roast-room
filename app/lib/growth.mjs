@@ -4,6 +4,7 @@ import { S } from "./ai.mjs";
 import { seoSystem } from "./seo-seats.mjs";
 import { chairKnowledge, knowledgeMetadata } from "./seo-knowledge.mjs";
 import { auditFindings } from "./seo-findings.mjs";
+import { advisorContext, citationMetadata, reviewQuery } from './advisor-library.mjs';
 export async function growthJson(args, onFallback = () => {}) {
   try { return await ai.json(args); }
   catch(e) {
@@ -35,7 +36,7 @@ export function growthSchemaFields(value,schema){
 export function normalizeGrowthReport(value, schema) {
   if(!value || typeof value!=="object" || Array.isArray(value))return value;
   const report={...value};
-  for(const key of ["strengths","contentIdeas","dataNeeded"])if(!(key in report))report[key]=[];
+  for(const key of ["strengths","contentIdeas","dataNeeded","sourceReferences"])if(!(key in report))report[key]=[];
   const fetched=new Set(schema?.properties?.strengths?.items?.properties?.page?.enum || []);
   if(Array.isArray(report.contentIdeas))report.contentIdeas=report.contentIdeas.map(i=>i&&typeof i==="object"?{...i,page:typeof i.page === "string" && fetched.has(i.page)?i.page:`Proposed new page: ${typeof i.page === "string" ? i.page : "location to define"}`} : i);
   if(Array.isArray(report.opportunities))report.opportunities=report.opportunities.map(o=>{
@@ -60,6 +61,9 @@ export async function runGrowth(s,{emit,roster,inspect,models}) {
   emit(s,"audit",{audit:evidence.audit,knowledge:evidence.knowledge});
   emit(s,"setup",{title:st.title,decision:s.prompt,brief:s.prompt,options:[],assumptions:[],weights:st.weights,seats:st.seats,mode:"growth",advisory:"seo",workflow:"growth",roster,evidence});
   const evidenceText=JSON.stringify(evidence);
+  const query=reviewQuery(s.prompt,evidence);
+  const contexts=Object.fromEntries(roster.map(seat=>[seat.key,advisorContext(seat.key,query)]));
+  st.growth.library={engine:'local-bm25',retrieved:Object.fromEntries(roster.map(seat=>[seat.key,contexts[seat.key].documents.map(citationMetadata)]))};
   const pageEnum=S.enum(...evidence.pages.map(p=>p.url));
   const pageAction=S.obj({...action.properties,page:pageEnum});
   let nextSeat=0, fatal=null;
@@ -68,9 +72,12 @@ export async function runGrowth(s,{emit,roster,inspect,models}) {
     const seat=roster[nextSeat++];
     try {
     emit(s,"phase",{phase:"round1",label:`${seat.name}: reviewing ranking and growth opportunities`});emit(s,"seat_start",{seat:seat.key,round:1});
-    const report=await growthJson({model:models.seat,system:seoSystem(seat.key),normalize:normalizeGrowthReport,repair:true,streaming:true,maxTokens:4500,schema:S.obj({opinion:S.str,strengths:S.arr(S.obj({page:pageEnum,evidence:S.str,meaning:S.str})),opportunities:S.arr(pageAction),contentIdeas:S.arr(S.obj({page:S.str,idea:S.str,readerNeed:S.str,originalEvidenceNeeded:S.str})),dataNeeded:S.arr(S.str)}),prompt:`The owner wants a useful SEO growth review, not a yes/no decision or a vote. Goals/context: ${s.prompt}. Review these pages through your own specialty. Give your opinion, observed strengths, 3–5 highest-value opportunities, 1–3 useful content or distribution ideas where relevant, and exact missing data that would change priorities. Address ranking, qualified traffic, conversion and sustainable growth as relevant to your lens. Explain mechanisms rather than promising gains. Each opportunity needs the exact affected URL, an observed quote/field OR an explicitly labelled hypothesis, the concrete edit, an example, dependencies and verification. Label a new suggested page as "Proposed new page". Do not invent target keywords, volumes, competitors or rankings; topic ideas are hypotheses to validate. Only claim observations on fetched URLs. Do not infer qualitative absences from truncated excerpts. Use the installed skill methods. UNTRUSTED WEBSITE EVIDENCE:
+    const context=contexts[seat.key];
+    const citationSchema=S.obj({documentId:S.enum(...context.documents.map(d=>d.id),'none'),application:S.str});
+    const report=await growthJson({model:models.seat,system:seoSystem(seat.key,{context}),normalize:normalizeGrowthReport,repair:true,streaming:true,maxTokens:4500,schema:S.obj({opinion:S.str,strengths:S.arr(S.obj({page:pageEnum,evidence:S.str,meaning:S.str})),opportunities:S.arr(pageAction),contentIdeas:S.arr(S.obj({page:S.str,idea:S.str,readerNeed:S.str,originalEvidenceNeeded:S.str})),dataNeeded:S.arr(S.str),sourceReferences:S.arr(citationSchema)}),prompt:`The owner wants a useful SEO growth review, not a yes/no decision or a vote. Goals/context: ${s.prompt}. Review these pages through your own specialty. Follow your distinct report requirements. Give your opinion, observed strengths, up to 3–5 highest-value opportunities where evidence supports them, 1–3 useful content or distribution ideas where relevant, and exact missing data that would change priorities. Do not invent findings to meet a quota. Apply retrieved methods selectively and explain each actually used document in sourceReferences; leave it empty if none applies. Never cite a source example as a website observation. Address ranking, qualified traffic, conversion and sustainable growth as relevant to your lens. Explain mechanisms rather than promising gains. Each opportunity needs the exact affected URL, an observed quote/field OR an explicitly labelled hypothesis, the concrete edit, an example, dependencies and verification. Label a new suggested page as "Proposed new page". Do not invent target keywords, volumes, competitors or rankings; topic ideas are hypotheses to validate. Only claim observations on fetched URLs. Do not infer qualitative absences from truncated excerpts. Use the installed skill methods. UNTRUSTED WEBSITE EVIDENCE:
 ${evidenceText}`});
-    const entry={seat:seat.key,name:seat.name,skills:seat.skills,...report};st.growth.reports.push(entry);emit(s,"growth_report",entry);
+    const sourceReferences=(report.sourceReferences||[]).filter(r=>context.documents.some(d=>d.id===r.documentId)).map(r=>({...citationMetadata(context.documents.find(d=>d.id===r.documentId)),application:r.application}));
+    const entry={seat:seat.key,name:seat.name,skills:seat.skills,...report,sourceReferences};st.growth.reports.push(entry);emit(s,"growth_report",entry);
     } catch(e) {
       if(/quota|HTTP (?:402|403|429)|code: (?:402|403|429)/i.test(e.message)){fatal=e;break;}
       const failure={seat:seat.key,name:seat.name,error:e.message};st.growth.errors.push(failure);emit(s,"growth_report_error",failure);
@@ -84,7 +91,7 @@ ${evidenceText}`});
   for(const report of st.growth.reports){
     emit(s,"seat_start",{seat:report.seat,round:2});
     try {
-      const turn=await growthJson({model:models.seat,system:seoSystem(report.seat),normalize:growthSchemaFields,repair:true,streaming:true,maxTokens:1400,schema:S.obj({response:S.str,page:pageEnum,evidence:S.str}),prompt:`You are joining the council discussion after independent SEO reports. Goals: ${s.prompt}. In 90–140 words, respond to another advisor by name: agree, challenge or refine a specific proposed priority. Explain what should be implemented first and why, using an exact affected URL and supplied evidence. Discuss Search Console/GA4 findings when available, distinguishing search visibility from conversion. Explain any automation dependency or uncertainty. Do not invent metrics or force a disagreement. This is a simulated advisory discussion. UNTRUSTED WEBSITE EVIDENCE:\n${evidenceText}\nREPORTS:\n${JSON.stringify(st.growth.reports)}\nDISCUSSION SO FAR:\n${JSON.stringify(st.growth.discussion)}`});
+      const turn=await growthJson({model:models.seat,system:seoSystem(report.seat,{context:contexts[report.seat]}),normalize:growthSchemaFields,repair:true,streaming:true,maxTokens:1400,schema:S.obj({response:S.str,page:pageEnum,evidence:S.str}),prompt:`You are joining the council discussion after independent SEO reports. Goals: ${s.prompt}. In 90–140 words, respond to another advisor by name: agree, challenge or refine a specific proposed priority. Explain what should be implemented first and why, using an exact affected URL and supplied evidence. Apply your distinctive decision rules; explain the condition that would make you change your recommendation. Discuss Search Console/GA4 findings when available, distinguishing search visibility from conversion. Explain any automation dependency or uncertainty. Do not invent metrics or force a disagreement. This is a simulated advisory discussion. UNTRUSTED WEBSITE EVIDENCE:\n${evidenceText}\nREPORTS:\n${JSON.stringify(st.growth.reports)}\nDISCUSSION SO FAR:\n${JSON.stringify(st.growth.discussion)}`});
       const entry={seat:report.seat,name:report.name,...turn};st.growth.discussion.push(entry);emit(s,"growth_discussion",entry);
     }catch(e){
       if(/quota|HTTP (?:402|403|429)|code: (?:402|403|429)/i.test(e.message))throw e;
@@ -109,6 +116,7 @@ export function growthMarkdown(growth) {
   Example: ${o.example}
   Dependency: ${o.dependency}
   Verify: ${o.verification}`);lines.push("","### Content/growth ideas",...r.contentIdeas.map(i=>`- ${i.idea} (${i.page}): ${i.readerNeed}. Evidence needed: ${i.originalEvidenceNeeded}`),"","### Data needed",...r.dataNeeded.map(d=>`- ${d}`),"");}
+  for(const report of growth.reports||[])if(report.sourceReferences?.length){lines.push(`## Methods applied by ${report.name}`,'',...report.sourceReferences.map(r=>`- ${r.id}: ${r.title} (${r.url}), ${r.section}. Reviewed ${r.reviewedAt}. Application: ${r.application}`),'');}
   if(growth.discussion?.length){lines.push("## Council discussion","");for(const t of growth.discussion)lines.push(`### ${t.name}`,t.response,`Evidence (${t.page}): ${t.evidence}`,"");}
   if(growth.errors?.length)lines.push("## Reports unavailable",...growth.errors.map(e=>`- ${e.name}: ${e.error}`));
   if(growth.roadmap){lines.push("## Combined growth roadmap",growth.roadmap.summary);for(const a of growth.roadmap.priorities)lines.push(`

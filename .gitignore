@@ -20,3 +20,5 @@ dataforseo-data/
 .env.*.local
 *.local.txt
 docs/previews/
+knowledge-data/
+.venv-transcripts/

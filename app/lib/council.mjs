@@ -337,7 +337,7 @@ async function runSeat(s, st, round, key, prompt) {
   let text = "";
   try {
     text = await ai.stream({
-      model: MODELS.seat, system: st.advisory === "seo" ? seoSystem(key) : systemFor(key), maxTokens: st.advisory === "seo" ? 2400 : 1400,
+      model: MODELS.seat, system: st.advisory === "seo" ? seoSystem(key,{query:s.prompt}) : systemFor(key), maxTokens: st.advisory === "seo" ? 2400 : 1400,
       messages: [{ role: "user", content: prompt }],
       onText: (d) => { text += d; emit(s, "delta", { round, seat: key, text: d }); },
     });

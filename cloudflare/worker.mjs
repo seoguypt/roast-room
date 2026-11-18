@@ -29,10 +29,14 @@ export class AdvisoryContainer extends DurableObject {
   }
   async start() {
     const container=this.ctx.container;
+    const env={};
+    for(const name of ['APP_ACCESS_USER','APP_ACCESS_PASSWORD','NARA_API_KEY','DATAFORSEO_LOGIN','DATAFORSEO_PASSWORD','GOOGLE_CLIENT_ID','GOOGLE_CLIENT_SECRET','HF_TOKEN','STATE_TOKEN','STATE_ORIGIN','PUBLIC_URL'])if(typeof this.env[name]==='string')env[name]=this.env[name];
+    const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify({image:container.images.base,env})));
+    const configHash=Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,'0')).join('');
+    if(container.running&&await this.ctx.storage.get('runtimeConfig')!==configHash)await container.destroy();
     if(!container.running){
-      const env={};
-      for(const name of ['APP_ACCESS_USER','APP_ACCESS_PASSWORD','NARA_API_KEY','DATAFORSEO_LOGIN','DATAFORSEO_PASSWORD','GOOGLE_CLIENT_ID','GOOGLE_CLIENT_SECRET','HF_TOKEN','STATE_TOKEN','STATE_ORIGIN','PUBLIC_URL'])if(typeof this.env[name]==='string')env[name]=this.env[name];
       container.start({image:container.images.base,instance:'standard-2',enableInternet:true,env});
+      await this.ctx.storage.put('runtimeConfig',configHash);
     }
     await container.setInactivityTimeout(5*60*1000);
     for(let attempt=0;attempt<90;attempt++){
@@ -43,8 +47,8 @@ export class AdvisoryContainer extends DurableObject {
   }
   async fetch(request) {
     if(!this.ctx.container.running)this.starting=null;
-    try{await this.ready();await this.ctx.container.setInactivityTimeout(5*60*1000);return await this.ctx.container.getTcpPort(4730).fetch(request);}
-    catch{this.starting=null;console.error('Advisory container unavailable');return new Response('Advisory is starting. Please retry in a moment.',{status:503,headers:{'retry-after':'10'}});}
+    try{await this.ready();await this.ctx.container.setInactivityTimeout(5*60*1000);const internalURL=new URL(request.url);internalURL.protocol='http:';return await this.ctx.container.getTcpPort(4730).fetch(new Request(internalURL,request));}
+    catch(error){this.starting=null;let message=String(error?.message||'Unknown startup error');for(const name of ['APP_ACCESS_PASSWORD','NARA_API_KEY','DATAFORSEO_PASSWORD','STATE_TOKEN','GOOGLE_CLIENT_SECRET','HF_TOKEN'])if(this.env[name])message=message.split(this.env[name]).join('[redacted]');console.error('Advisory container unavailable: '+message);return new Response('Advisory is starting. Please retry in a moment.',{status:503,headers:{'retry-after':'10'}});}
   }
 }
 export default {

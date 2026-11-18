@@ -22,3 +22,4 @@ dataforseo-data/
 docs/previews/
 knowledge-data/
 .venv-transcripts/
+.wrangler/

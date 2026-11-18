@@ -1,0 +1,15 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "advisory-roast-room",
+  "account_id": "090590bef8a60b9b7bbc2733c45cb5a0",
+  "main": "cloudflare/worker.mjs",
+  "compatibility_date": "2026-11-18",
+  "workers_dev": true,
+  "routes": [{"pattern":"advisory.viralseo.net","custom_domain":true}],
+  "observability": {"enabled":true},
+  "durable_objects": {"bindings":[{"name":"ADVISORY","class_name":"AdvisoryContainer"}]},
+  "migrations": [{"tag":"v1","new_sqlite_classes":["AdvisoryContainer"]}],
+  "containers": [{"class_name":"AdvisoryContainer","images":{"base":{"dockerfile":"./Dockerfile.cloudflare"}},"scheduling_policy":"durable_object"}],
+  "r2_buckets": [{"binding":"STATE","bucket_name":"advisory-roast-room-private"}],
+  "vars": {"PUBLIC_URL":"https://advisory.viralseo.net","STATE_ORIGIN":"https://advisory-roast-room.moneyfarm.workers.dev"}
+}

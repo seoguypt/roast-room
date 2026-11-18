@@ -22,5 +22,8 @@
     "google-auth-library": "^11.3.0",
     "lighthouse": "^13.5.0",
     "puppeteer-core": "^25.13.0"
+  },
+  "devDependencies": {
+    "wrangler": "^4.164.0"
   }
 }
